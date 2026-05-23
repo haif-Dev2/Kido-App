@@ -31,7 +31,19 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.local
 .env*.local
+
+# AI assistant configs
+.claude/
+.devin/
+
+# Build artifacts (large binaries, not for git)
+*.apk
+*.aab
+gradle-build.log
+qr.png
 
 # typescript
 *.tsbuildinfo

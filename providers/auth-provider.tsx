@@ -1,0 +1,106 @@
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+
+export interface Profile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  photo_url: string | null;
+  role: 'PARENT' | 'BABY_SITTER' | 'ADMIN';
+  is_verified: boolean;
+}
+
+interface AuthContextValue {
+  session: Session | null;
+  profile: Profile | null;
+  loading: boolean;
+  /** Re-fetch the profile row (e.g. after editing it). */
+  refreshProfile: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue>({
+  session: null,
+  profile: null,
+  loading: true,
+  refreshProfile: async () => {},
+});
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) {
+      // Row not found or schema missing — keep profile null; screens must handle it.
+      console.warn('[auth] profile fetch error:', error.message);
+      setProfile(null);
+      return;
+    }
+    setProfile((data as Profile | null) ?? null);
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (session?.user?.id) await fetchProfile(session.user.id);
+  }, [session?.user?.id, fetchProfile]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    // Hard timeout so the app never hangs on a stuck Supabase init / storage read.
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('[auth] getSession timed out, continuing as guest');
+        setLoading(false);
+      }
+    }, 2500);
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      setSession(session);
+      try {
+        if (session?.user?.id) await fetchProfile(session.user.id);
+      } catch (e) {
+        console.error('[auth] profile fetch error:', e);
+      } finally {
+        clearTimeout(timeout);
+        setLoading(false);
+      }
+    }).catch((err) => {
+      console.error('[auth] getSession error:', err);
+      if (mounted) {
+        clearTimeout(timeout);
+        setLoading(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+      if (!mounted) return;
+      setSession(s);
+      if (s?.user?.id) await fetchProfile(s.user.id);
+      else setProfile(null);
+    });
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
+  }, [fetchProfile]);
+
+  return (
+    <AuthContext.Provider value={{ session, profile, loading, refreshProfile }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => useContext(AuthContext);

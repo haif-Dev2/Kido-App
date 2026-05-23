@@ -1,0 +1,148 @@
+/**
+ * Mock Algerian sitter data.
+ * Photos use Unsplash women-portraits; replace with real user uploads.
+ */
+
+import type { BabySitter } from '../../models/types';
+import { Role } from '../../models/types';
+
+export interface MockSitter extends BabySitter {
+  /** For UI — not in domain model yet */
+  neighborhood: string;
+  distanceKm: number;
+  reviewsCount: number;
+  bio: string;
+  languages: string[];        // ['Arabic', 'French', 'English']
+  specialties: string[];      // ['Infants', 'Homework help', 'Cooking']
+  responseMinutes: number;    // avg first-reply time
+  govIdVerified: boolean;
+  policeCheck: boolean;
+  availableNow: boolean;
+  latitude: number;
+  longitude: number;
+  /** Supabase profile UUID — set when loaded from the DB, absent for mock entries */
+  uuid?: string;
+}
+
+export const MOCK_SITTERS: MockSitter[] = [
+  {
+    id: 1,
+    firstName: 'Amina', lastName: 'Khelifi',
+    email: 'amina@kido.dz', phone: '+213550123456',
+    photo: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=600',
+    role: Role.BABY_SITTER, createdAt: '2025-03-12T10:00:00Z', isVerified: true,
+    experience: '5+ years', hourlyRate: 250,
+    availabilities: [],
+    averageRating: 4.9, location: 'Algiers, Hydra', isValidated: true, identityVerified: true,
+    neighborhood: 'Hydra', distanceKm: 0.8, reviewsCount: 48,
+    bio: 'Passionate childcare provider with 5+ years of experience. I love creating fun, educational activities for children of all ages. CPR certified and first aid trained.',
+    languages: ['Arabic', 'French'],
+    specialties: ['Toddlers', 'Homework help', 'Cooking'],
+    responseMinutes: 7,
+    govIdVerified: true, policeCheck: true, availableNow: true,
+    latitude: 36.7510, longitude: 3.0490,
+  },
+  {
+    id: 2,
+    firstName: 'Yasmine', lastName: 'Benali',
+    email: 'yasmine@kido.dz', phone: '+213550123457',
+    photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600',
+    role: Role.BABY_SITTER, createdAt: '2025-04-02T10:00:00Z', isVerified: true,
+    experience: '3–5 years', hourlyRate: 200,
+    availabilities: [],
+    averageRating: 4.7, location: 'Algiers, Bab El Oued', isValidated: true, identityVerified: true,
+    neighborhood: 'Bab El Oued', distanceKm: 1.2, reviewsCount: 32,
+    bio: 'Education major at Alger 2 University. Loves reading and crafts with kids 4-10.',
+    languages: ['Arabic', 'French'],
+    specialties: ['School-age', 'Arts & crafts'],
+    responseMinutes: 12,
+    govIdVerified: true, policeCheck: true, availableNow: true,
+    latitude: 36.7917, longitude: 3.0500,
+  },
+  {
+    id: 3,
+    firstName: 'Fatima', lastName: 'Zerrouki',
+    email: 'fatima@kido.dz', phone: '+213550123458',
+    photo: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=600',
+    role: Role.BABY_SITTER, createdAt: '2024-11-20T10:00:00Z', isVerified: true,
+    experience: '5+ years', hourlyRate: 300,
+    availabilities: [],
+    averageRating: 4.8, location: 'Algiers, Kouba', isValidated: true, identityVerified: true,
+    neighborhood: 'Kouba', distanceKm: 2.1, reviewsCount: 56,
+    bio: 'Mother of two, nurse by training. Especially experienced with infants and night-time care.',
+    languages: ['Arabic', 'French'],
+    specialties: ['Infants', 'Overnight', 'First aid'],
+    responseMinutes: 4,
+    govIdVerified: true, policeCheck: true, availableNow: false,
+    latitude: 36.7200, longitude: 3.1000,
+  },
+  {
+    id: 4,
+    firstName: 'Nour', lastName: 'Hadji',
+    email: 'nour@kido.dz', phone: '+213550123459',
+    photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600',
+    role: Role.BABY_SITTER, createdAt: '2025-08-01T10:00:00Z', isVerified: true,
+    experience: '1–2 years', hourlyRate: 180,
+    availabilities: [],
+    averageRating: 4.6, location: 'Algiers, Bir Mourad Raïs', isValidated: true, identityVerified: false,
+    neighborhood: 'Bir Mourad Raïs', distanceKm: 3.5, reviewsCount: 19,
+    bio: 'Psychology student, gentle and engaging with school-age children.',
+    languages: ['Arabic', 'French', 'English'],
+    specialties: ['School-age', 'Homework help'],
+    responseMinutes: 18,
+    govIdVerified: false, policeCheck: true, availableNow: true,
+    latitude: 36.7400, longitude: 3.0500,
+  },
+  {
+    id: 5,
+    firstName: 'Lina', lastName: 'Messaoudi',
+    email: 'lina@kido.dz', phone: '+213550123460',
+    photo: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=600',
+    role: Role.BABY_SITTER, createdAt: '2024-09-15T10:00:00Z', isVerified: true,
+    experience: '5+ years', hourlyRate: 350,
+    availabilities: [],
+    averageRating: 5.0, location: 'Algiers, El Biar', isValidated: true, identityVerified: true,
+    neighborhood: 'El Biar', distanceKm: 1.8, reviewsCount: 12,
+    bio: 'Certified Montessori teacher. Specializes in early learning and bilingual homes.',
+    languages: ['Arabic', 'French', 'English', 'Spanish'],
+    specialties: ['Early learning', 'Montessori', 'Bilingual'],
+    responseMinutes: 3,
+    govIdVerified: true, policeCheck: true, availableNow: true,
+    latitude: 36.7500, longitude: 3.0200,
+  },
+  {
+    id: 6,
+    firstName: 'Sara', lastName: 'Boudjellal',
+    email: 'sara@kido.dz', phone: '+213550123461',
+    photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600',
+    role: Role.BABY_SITTER, createdAt: '2025-01-10T10:00:00Z', isVerified: true,
+    experience: '3–5 years', hourlyRate: 220,
+    availabilities: [],
+    averageRating: 4.8, location: 'Algiers, Dely Ibrahim', isValidated: true, identityVerified: true,
+    neighborhood: 'Dely Ibrahim', distanceKm: 4.2, reviewsCount: 27,
+    bio: 'Warm, playful, and great at bedtime routines. Available weekends.',
+    languages: ['Arabic', 'French'],
+    specialties: ['Toddlers', 'Bedtime routines'],
+    responseMinutes: 9,
+    govIdVerified: true, policeCheck: false, availableNow: false,
+    latitude: 36.7500, longitude: 2.9500,
+  },
+];
+
+export const MOCK_REVIEWS = [
+  {
+    id: 1, babySitterId: 1, parentId: 101, rating: 5,
+    parentName: 'Leïla K.', createdAt: '2026-03-14T10:00:00Z',
+    comment: 'Amina was incredible with my 3-year-old. She sent photos and updates, and my little girl asked when she\'s coming back.',
+  },
+  {
+    id: 2, babySitterId: 1, parentId: 102, rating: 5,
+    parentName: 'Omar B.', createdAt: '2026-02-22T10:00:00Z',
+    comment: 'Punctual, professional, and so warm with the kids. We booked her again the next weekend.',
+  },
+  {
+    id: 3, babySitterId: 1, parentId: 103, rating: 4,
+    parentName: 'Selma M.', createdAt: '2026-01-30T10:00:00Z',
+    comment: 'Great with homework help. Our son actually enjoyed doing his math after their session.',
+  },
+];

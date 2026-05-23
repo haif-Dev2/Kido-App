@@ -1,16 +1,14 @@
 {
   "expo": {
-    "name": "react-native-tutorial",
+    "name": "Kido",
     "slug": "react-native-tutorial",
     "version": "1.0.0",
+    "description": "Find verified babysitters in Algiers — book by the hour, see live ratings.",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "reactnativetutorial",
+    "scheme": "kido",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -19,10 +17,15 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.reactnativetutorial"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kido.app"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -38,11 +41,20 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
-    }
+      "reactCompiler": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "291c7299-9916-4044-bb8c-e034b6787bf1"
+      }
+    },
+    "owner": "abiubakar"
   }
 }
