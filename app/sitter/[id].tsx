@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { MOCK_SITTERS, MOCK_REVIEWS, type MockSitter } from '../../lib/mock/sitters';
 import { fetchSitterById } from '../../lib/api/sitters';
@@ -91,9 +92,12 @@ export default function SitterDetailScreen() {
       >
         {/* ─── HERO ─── */}
         <View style={[s.hero, { height: HERO_HEIGHT, paddingTop: insets.top + 12 }]}>
-          {/* Diagonal pattern overlay */}
-          <View style={s.heroPattern} />
-          <View style={s.heroGradient} />
+          <LinearGradient
+            colors={[TEAL, TEAL_DARK]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={s.heroBubble1} />
 
           {/* Top buttons */}
           <View style={s.heroTopRow}>
@@ -396,23 +400,15 @@ const ss = StyleSheet.create({
 
 /* ─── Styles ─── */
 const s = StyleSheet.create({
-  // Hero
+  // Hero — gradient applied via LinearGradient child
   hero: {
-    backgroundColor: TEAL,
     paddingHorizontal: 16,
-    overflow: 'visible',
+    overflow: 'hidden',
     position: 'relative',
   },
-  heroPattern: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    opacity: 0.06,
-    backgroundColor: 'transparent',
-  },
-  heroGradient: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(15,110,86,0.15)',
+  heroBubble1: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.06)', top: -50, right: -50,
   },
   heroTopRow: {
     flexDirection: 'row',

@@ -1,8 +1,7 @@
 // components/booking/BookingSummary.tsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors, fonts, radius } from "../../theme/colors";
+import { Colors } from '../../constants/Colors';
 
 export type SummaryRow = {
   label: string;
@@ -25,12 +24,7 @@ export function BookingSummary({
   title = 'Booking summary',
 }: Props) {
   return (
-    <LinearGradient
-      colors={colors.darkGradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.card}
-    >
+    <View style={styles.card}>
       <View style={styles.head}>
         <Text style={styles.title}>{title}</Text>
         {!!tag && (
@@ -40,7 +34,7 @@ export function BookingSummary({
         )}
       </View>
 
-      <View style={styles.rows}>
+      <View>
         {rows.map((r, i) => (
           <View
             key={i}
@@ -59,74 +53,79 @@ export function BookingSummary({
           <Text style={styles.totalCur}> {currency}</Text>
         </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radius.xxl,
-    paddingHorizontal: 22,
-    paddingVertical: 20,
-    overflow: 'hidden',
+    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   title: {
-    fontFamily: fonts.serif,
     fontSize: 16,
-    color: '#fff',
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   tag: {
-    backgroundColor: 'rgba(212,146,58,0.15)',
-    paddingHorizontal: 8,
+    backgroundColor: Colors.light.primaryLight,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radius.sm,
+    borderRadius: 999,
   },
   tagTxt: {
-    fontFamily: fonts.sansBold,
     fontSize: 10,
-    color: colors.accent,
-    letterSpacing: 0.4,
+    fontWeight: '700',
+    color: Colors.light.primary,
+    letterSpacing: 0.5,
   },
-  rows: {},
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.08)',
-    borderStyle: 'dashed',
+    borderBottomColor: '#F3F4F6',
   },
   rowLast: { borderBottomWidth: 0 },
   lbl: {
-    fontFamily: fonts.sans,
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   val: {
-    fontFamily: fonts.sansMed,
-    fontSize: 12,
-    color: '#fff',
+    fontSize: 13,
+    color: Colors.light.text,
+    fontWeight: '600',
   },
   totalRow: {
     marginTop: 12,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.12)',
+    borderTopColor: '#E5E7EB',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
   },
   totalLbl: {
-    fontFamily: fonts.sansBold,
     fontSize: 11,
-    color: 'rgba(255,255,255,0.55)',
+    fontWeight: '700',
+    color: '#6B7280',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
@@ -135,15 +134,15 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   totalVal: {
-    fontFamily: fonts.serif,
-    fontSize: 30,
-    color: '#fff',
-    letterSpacing: -1,
+    fontSize: 26,
+    fontWeight: '800',
+    color: Colors.light.primary,
+    letterSpacing: -0.5,
   },
   totalCur: {
-    fontFamily: fonts.sansMed,
-    fontSize: 13,
-    color: colors.accent,
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
     marginLeft: 4,
   },
 });

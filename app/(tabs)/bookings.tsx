@@ -128,7 +128,7 @@ export default function BookingsScreen() {
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
-      {/* Header — gradient hero on tablet/desktop, flat on phone */}
+      {/* Header — clean teal-soft gradient */}
       <LinearGradient
         colors={['#E6F4F5', '#FFFFFF']}
         start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
@@ -185,10 +185,16 @@ export default function BookingsScreen() {
       >
         {filtered.length === 0 ? (
           <View style={s.empty}>
-            <Ionicons name="calendar-outline" size={48} color="#D1D5DB" />
-            <Text style={s.emptyTitle}>No bookings here</Text>
-            <Text style={s.emptySubtitle}>Book a babysitter to get started</Text>
-            <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/(tabs)/search')}>
+            <View style={s.emptyIcon}>
+              <Ionicons name="calendar-outline" size={36} color={Colors.light.primary} />
+            </View>
+            <Text style={s.emptyTitle}>No bookings yet</Text>
+            <Text style={s.emptySubtitle}>Find a babysitter and book your first session</Text>
+            <TouchableOpacity
+              style={s.emptyBtn}
+              onPress={() => router.push('/(tabs)/search')}
+              activeOpacity={0.9}
+            >
               <Text style={s.emptyBtnText}>Find a sitter</Text>
             </TouchableOpacity>
           </View>
@@ -350,11 +356,17 @@ const s = StyleSheet.create({
   detailsText: { fontSize: 13, color: Colors.light.primary, fontWeight: '700' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 8 },
+  emptyIcon: {
+    width: 80, height: 80, borderRadius: 24,
+    backgroundColor: Colors.light.primaryLight,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
+  },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginTop: 8 },
-  emptySubtitle: { fontSize: 14, color: '#6B7280' },
+  emptySubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', maxWidth: 260 },
   emptyBtn: {
     marginTop: 16, backgroundColor: Colors.light.primary,
-    paddingHorizontal: 24, paddingVertical: 13, borderRadius: 24,
+    paddingHorizontal: 28, paddingVertical: 14, borderRadius: 24,
   },
   emptyBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
 });

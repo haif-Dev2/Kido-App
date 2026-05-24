@@ -130,10 +130,10 @@ export default function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Identity hero — gradient cover + avatar + stats */}
+        {/* Identity hero — teal gradient with subtle decorative circles */}
         <View style={s.heroWrap}>
           <LinearGradient
-            colors={[Colors.light.primary, '#03565C']}
+            colors={[Colors.light.primary, '#005C68']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={s.heroCover}
           >
@@ -243,7 +243,7 @@ const s = StyleSheet.create({
     elevation: 3,
     borderWidth: 1, borderColor: '#F0F0F0',
   },
-  heroCover: { height: 90, position: 'relative' },
+  heroCover: { height: 100, position: 'relative', overflow: 'hidden' },
   heroCircle1: {
     position: 'absolute', width: 140, height: 140, borderRadius: 70,
     backgroundColor: 'rgba(255,255,255,0.08)', top: -40, right: -40,

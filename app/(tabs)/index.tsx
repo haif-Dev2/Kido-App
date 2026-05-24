@@ -214,15 +214,15 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
-        {/* Promo banner */}
+        {/* Promo banner — teal with subtle coral accent */}
         <Pressable
-          style={({ pressed }) => [s.promo, pressed && { opacity: 0.9 }]}
+          style={({ pressed }) => [s.promo, pressed && { opacity: 0.94 }]}
           onPress={handlePromo}
           accessibilityRole="button"
           accessibilityLabel="Promo: 20% off first booking"
         >
           <LinearGradient
-            colors={[Colors.light.primary, '#03565C']}
+            colors={[Colors.light.primary, '#005C68']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFillObject}
           />
@@ -230,7 +230,7 @@ export default function HomeScreen() {
             <Ionicons name="sparkles" size={20} color="#FFFFFF" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.promoTitle}>First booking? Get 20% off!</Text>
+            <Text style={s.promoTitle}>First booking? Get 20% off</Text>
             <Text style={s.promoSubtitle}>Use code KIDO20 at checkout</Text>
           </View>
           <View style={s.promoArrow}>
@@ -608,7 +608,7 @@ function TinyChip({
 /* ──────────────────────────────── styles ──────────────────────────────── */
 
 const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F5F6F8' },
+  page: { flex: 1, backgroundColor: '#FAF7F2' },
 
   // Header
   headerRow: {
@@ -648,8 +648,6 @@ const s = StyleSheet.create({
   },
   searchPlaceholder: { flex: 1, color: '#9CA3AF', fontSize: 14 },
   searchAction: {
-    // 36×36 visual circle but the parent searchBar (52px high) provides the
-    // 44+ tap area on web. Keep visual size small to match the design.
     width: 36, height: 36, borderRadius: 10,
     backgroundColor: Colors.light.primary,
     alignItems: 'center', justifyContent: 'center',
@@ -658,8 +656,10 @@ const s = StyleSheet.create({
   // Promo
   promo: {
     marginHorizontal: 20, marginTop: 14,
-    height: 70, borderRadius: 14, overflow: 'hidden',
+    height: 72, borderRadius: 16, overflow: 'hidden',
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 14,
+    shadowColor: Colors.light.primary, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   promoIconWrap: {
     width: 42, height: 42, borderRadius: 10,
@@ -674,7 +674,7 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // Chips — minHeight 44 ensures filter chips meet the tap-target spec.
+  // Chips
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999,
