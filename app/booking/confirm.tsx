@@ -88,59 +88,30 @@ export default function BookingConfirmScreen() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        // Demo mode — navigate to success screen
-        const demoCode = `KIDO-${Math.floor(100000 + Math.random() * 900000)}`;
-        router.replace({
-          pathname: '/booking/success' as any,
-          params: {
-            bookingCode: demoCode,
-            sitterName: params.sitterName ?? 'Your sitter',
-            date: params.date,
-            startTime: params.startTime,
-            endTime: params.endTime,
-            service: params.service,
-            total: params.total,
-          },
-        });
-        return;
-      }
-
-      // Build start/end timestamps from the date + time strings
-      const date = params.date ? new Date(params.date) : new Date();
-      const [sh, sm] = (params.startTime ?? '09:00').split(':').map(Number);
-      const [eh, em] = (params.endTime ?? '12:00').split(':').map(Number);
-      const startISO = new Date(date);
-      startISO.setHours(sh, sm, 0, 0);
-      const endISO = new Date(date);
-      endISO.setHours(eh, em, 0, 0);
-      if (endISO < startISO) endISO.setDate(endISO.getDate() + 1);
-
       const code = `KIDO-${Math.floor(100000 + Math.random() * 900000)}`;
 
-      const { error } = await supabase.from('bookings').insert({
-        code,
-        parent_id: user.id,
-        babysitter_id: params.sitterId,
-        status: 'pending',
-        start_date: startISO.toISOString(),
-        end_date: endISO.toISOString(),
-        total_price: totalNum,
-        notes: params.notes || null,
-      });
+      if (user) {
+        // Persist to Supabase
+        const date = params.date ? new Date(params.date) : new Date();
+        const [sh, sm] = (params.startTime ?? '09:00').split(':').map(Number);
+        const [eh, em] = (params.endTime ?? '12:00').split(':').map(Number);
+        const startISO = new Date(date); startISO.setHours(sh, sm, 0, 0);
+        const endISO = new Date(date);   endISO.setHours(eh, em, 0, 0);
+        if (endISO < startISO) endISO.setDate(endISO.getDate() + 1);
 
-      router.replace({
-        pathname: '/booking/success' as any,
-        params: {
-          bookingCode: code,
-          sitterName: params.sitterName ?? 'Your sitter',
-          date: params.date,
-          startTime: params.startTime,
-          endTime: params.endTime,
-          service: params.service,
-          total: params.total,
-        },
+        const { error } = await supabase.from('bookings').insert({
+          code, parent_id: user.id, babysitter_id: params.sitterId,
+          status: 'pending', start_date: startISO.toISOString(),
+          end_date: endISO.toISOString(), total_price: totalNum,
+          notes: params.notes || null,
+        });
+        if (error) console.warn('[confirm] insert error:', error.message);
+      }
+
+      // Go to payment screen (works in both auth and demo mode)
+      router.push({
+        pathname: '/booking/payment' as any,
+        params: { ...params, bookingCode: code },
       });
     } catch (e: any) {
       console.warn('[confirm] error:', e?.message);

@@ -30,17 +30,28 @@ type UpcomingBooking = {
   totalPrice: number;
 };
 
-const MOCK_REQUESTS = [
+type BookingRequest = {
+  id: string;
+  parentName: string;
+  parentPhoto: string | null;
+  childCount: number;
+  location: string;
+  date: string;
+  time: string;
+  price: number;
+  urgent: boolean;
+  expiresIn: string | null;
+};
+
+const FALLBACK_REQUESTS: BookingRequest[] = [
   {
     id: 'req-1',
     parentName: 'Sarah B.',
     parentPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
     childCount: 2,
-    childAges: 'kids',
     location: 'Hydra',
-    distance: 2.4,
     date: 'Tonight',
-    time: '7:00 PM - 5:00 PM',
+    time: '7:00 PM – 10:00 PM',
     price: 2400,
     urgent: true,
     expiresIn: '1h',
@@ -50,11 +61,9 @@ const MOCK_REQUESTS = [
     parentName: 'Yasmine K.',
     parentPhoto: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
     childCount: 1,
-    childAges: 'child',
     location: 'Bab Ezzouar',
-    distance: 4.8,
     date: 'Sat, May 9',
-    time: '9:30 AM - 1:00 PM',
+    time: '9:30 AM – 1:00 PM',
     price: 2200,
     urgent: false,
     expiresIn: null,
@@ -87,6 +96,8 @@ export default function SitterHomeScreen() {
   const contentMaxWidth = isPhone ? undefined : MAX_CONTENT_WIDTH;
 
   const [upcoming, setUpcoming] = useState<UpcomingBooking[]>([]);
+  const [requests, setRequests] = useState<BookingRequest[]>(FALLBACK_REQUESTS);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('Schedule');
@@ -112,7 +123,32 @@ export default function SitterHomeScreen() {
         .limit(10);
 
       if (bookings) {
-        setUpcoming(bookings.map((b: any) => ({
+        const pending = bookings.filter((b: any) => b.status === 'PENDING');
+        const confirmed = bookings.filter((b: any) => b.status !== 'PENDING');
+
+        // Map pending bookings to request cards
+        if (pending.length > 0) {
+          setRequests(pending.map((b: any) => {
+            const start = new Date(b.start_date);
+            const end = new Date(b.end_date);
+            return {
+              id: b.id,
+              parentName: b.parent
+                ? `${b.parent.first_name} ${b.parent.last_name}`.trim()
+                : 'Parent',
+              parentPhoto: b.parent?.photo_url ?? null,
+              childCount: 1,
+              location: 'Algiers',
+              date: start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+              time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+              price: b.total_price ?? 0,
+              urgent: false,
+              expiresIn: null,
+            };
+          }));
+        }
+
+        setUpcoming(confirmed.map((b: any) => ({
           id: b.id,
           code: b.code ?? b.id.slice(0, 8).toUpperCase(),
           status: b.status as BookingStatus,
@@ -165,14 +201,69 @@ export default function SitterHomeScreen() {
   useEffect(() => { load(); }, [load]);
   useFocusEffect(useCallback(() => { load(true); }, [load]));
 
-  const handleAccept = (_requestId: string) => {
-    haptics.light();
-    Alert.alert('Booking Accepted', 'You have accepted this booking request.');
+  const handleAccept = async (requestId: string) => {
+    haptics.medium();
+    setActionLoading(requestId);
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'CONFIRMED' })
+        .eq('id', requestId);
+
+      // Optimistic: remove from requests, add to upcoming
+      const accepted = requests.find(r => r.id === requestId);
+      setRequests(prev => prev.filter(r => r.id !== requestId));
+      if (accepted) {
+        setUpcoming(prev => [...prev, {
+          id: requestId,
+          code: requestId.slice(0, 8).toUpperCase(),
+          status: BookingStatus.CONFIRMED,
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
+          totalPrice: accepted.price,
+          parentName: accepted.parentName,
+          parentPhoto: accepted.parentPhoto,
+        }]);
+      }
+
+      if (error) console.warn('[accept] supabase error:', error.message);
+      haptics.success();
+      Alert.alert('✅ Booking Accepted', `You confirmed the booking for ${accepted?.parentName ?? 'the parent'}. They will be notified.`);
+    } catch (e) {
+      console.warn('[accept] error:', e);
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleDecline = (_requestId: string) => {
-    haptics.light();
-    Alert.alert('Booking Declined', 'You have declined this booking request.');
+  const handleDecline = (requestId: string) => {
+    haptics.warning();
+    Alert.alert(
+      'Decline this booking?',
+      'The parent will be notified and can book another sitter.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(requestId);
+            try {
+              await supabase
+                .from('bookings')
+                .update({ status: 'DECLINED' })
+                .eq('id', requestId);
+              setRequests(prev => prev.filter(r => r.id !== requestId));
+              haptics.tap();
+            } catch (e) {
+              console.warn('[decline] error:', e);
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const sitterName = profile
@@ -343,19 +434,21 @@ export default function SitterHomeScreen() {
           <View style={s.newRequestsHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={s.sectionTitle}>New requests</Text>
-              <View style={s.newBadge}>
-                <Text style={s.newBadgeText}>{MOCK_REQUESTS.length} new</Text>
-              </View>
+              {requests.length > 0 && (
+                <View style={s.newBadge}>
+                  <Text style={s.newBadgeText}>{requests.length} new</Text>
+                </View>
+              )}
             </View>
-            <TouchableOpacity hitSlop={10}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={s.seeAll}>See all</Text>
-                <Ionicons name="chevron-forward" size={14} color={TEAL} />
-              </View>
-            </TouchableOpacity>
           </View>
 
-          {MOCK_REQUESTS.map((req, idx) => (
+          {requests.length === 0 ? (
+            <View style={s.emptyRequests}>
+              <Ionicons name="calendar-outline" size={32} color={TEAL} />
+              <Text style={s.emptyRequestsText}>No pending requests</Text>
+              <Text style={s.emptyRequestsSub}>New booking requests will appear here</Text>
+            </View>
+          ) : requests.map((req, idx) => (
             <Animated.View
               key={req.id}
               entering={FadeInDown.duration(400).delay(100 + idx * 80)}
@@ -370,7 +463,7 @@ export default function SitterHomeScreen() {
 
                 <View style={s.requestParentRow}>
                   <Image
-                    source={{ uri: req.parentPhoto }}
+                    source={{ uri: req.parentPhoto ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' }}
                     style={s.requestAvatar}
                     contentFit="cover"
                   />
@@ -378,9 +471,9 @@ export default function SitterHomeScreen() {
                     <Text style={s.requestName}>{req.parentName}</Text>
                     <View style={s.requestMeta}>
                       <Ionicons name="people-outline" size={12} color="#6B7280" />
-                      <Text style={s.requestMetaText}>{req.childCount} {req.childAges}</Text>
+                      <Text style={s.requestMetaText}>{req.childCount} {req.childCount === 1 ? 'child' : 'kids'}</Text>
                       <Ionicons name="location-outline" size={12} color="#6B7280" style={{ marginLeft: 8 }} />
-                      <Text style={s.requestMetaText}>{req.location} · {req.distance} km</Text>
+                      <Text style={s.requestMetaText}>{req.location}</Text>
                     </View>
                   </View>
                 </View>
@@ -397,24 +490,26 @@ export default function SitterHomeScreen() {
                   </View>
                   <View style={s.requestPriceCol}>
                     <Text style={s.requestPrice}>{req.price}</Text>
-                    <Text style={s.requestPriceUnit}>DZD/h</Text>
+                    <Text style={s.requestPriceUnit}>DZD</Text>
                   </View>
                 </View>
 
                 <View style={s.requestActions}>
                   <TouchableOpacity
-                    style={s.declineBtn}
+                    style={[s.declineBtn, actionLoading === req.id && { opacity: 0.5 }]}
                     onPress={() => handleDecline(req.id)}
                     activeOpacity={0.8}
+                    disabled={actionLoading !== null}
                   >
                     <Ionicons name="close-outline" size={16} color="#6B7280" />
                     <Text style={s.declineBtnText}>Decline</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={s.acceptBtn}
+                    style={[s.acceptBtn, actionLoading === req.id && { opacity: 0.7 }]}
                     onPress={() => handleAccept(req.id)}
                     activeOpacity={0.85}
+                    disabled={actionLoading !== null}
                   >
                     <LinearGradient
                       colors={[TEAL, '#00A99D']}
@@ -422,8 +517,14 @@ export default function SitterHomeScreen() {
                       end={{ x: 1, y: 0 }}
                       style={[StyleSheet.absoluteFillObject, { borderRadius: 12 }]}
                     />
-                    <Ionicons name="checkmark-circle-outline" size={16} color="#FFF" />
-                    <Text style={s.acceptBtnText}>Accept Booking</Text>
+                    {actionLoading === req.id ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark-circle-outline" size={16} color="#FFF" />
+                        <Text style={s.acceptBtnText}>Accept Booking</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -804,6 +905,15 @@ const s = StyleSheet.create({
   requestPriceCol: { alignItems: 'flex-end' },
   requestPrice: { fontSize: 22, fontWeight: '800', color: TEAL },
   requestPriceUnit: { fontSize: 11, color: '#9CA3AF', fontWeight: '500' },
+
+  emptyRequests: {
+    alignItems: 'center', paddingVertical: 32, gap: 6,
+    backgroundColor: '#F9FAFB', borderRadius: 16,
+    borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed',
+    marginBottom: 12,
+  },
+  emptyRequestsText: { fontSize: 15, fontWeight: '700', color: '#374151', marginTop: 4 },
+  emptyRequestsSub: { fontSize: 13, color: '#9CA3AF', textAlign: 'center' },
 
   requestActions: {
     flexDirection: 'row',

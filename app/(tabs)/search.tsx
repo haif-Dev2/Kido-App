@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -27,6 +27,19 @@ export default function SearchScreen() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [availableNowOnly, setAvailableNowOnly] = useState(false);
   const [sitters, setSitters] = useState<MockSitter[]>(MOCK_SITTERS);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Filter state
+  const [minRating, setMinRating] = useState(0);         // 0 = any
+  const [maxPrice, setMaxPrice] = useState(0);           // 0 = any
+  const [maxDistanceKm, setMaxDistanceKm] = useState(0); // 0 = any
+
+  // Pending filter state (applied only when user taps Apply)
+  const [pendingMinRating, setPendingMinRating] = useState(0);
+  const [pendingMaxPrice, setPendingMaxPrice] = useState(0);
+  const [pendingMaxDist, setPendingMaxDist] = useState(0);
+  const [pendingVerified, setPendingVerified] = useState(false);
+  const [pendingAvailNow, setPendingAvailNow] = useState(false);
 
   // Number of result columns by viewport. Map height also scales — bigger
   // viewports get a more useful map (260 / 360 vs the phone 160).
@@ -42,29 +55,32 @@ export default function SearchScreen() {
 
   useEffect(() => { fetchSitters().then(setSitters); }, []);
 
-  const activeFilterCount = (verifiedOnly ? 1 : 0) + (availableNowOnly ? 1 : 0);
+  const activeFilterCount =
+    (verifiedOnly ? 1 : 0) + (availableNowOnly ? 1 : 0) +
+    (minRating > 0 ? 1 : 0) + (maxPrice > 0 ? 1 : 0) + (maxDistanceKm > 0 ? 1 : 0);
 
   const openFilters = () => {
-    Alert.alert(
-      'Filters',
-      'Quick filters:',
-      [
-        {
-          text: verifiedOnly ? '✓ Verified only' : 'Verified only',
-          onPress: () => setVerifiedOnly(v => !v),
-        },
-        {
-          text: availableNowOnly ? '✓ Available now' : 'Available now',
-          onPress: () => setAvailableNowOnly(v => !v),
-        },
-        {
-          text: 'Clear all',
-          style: 'destructive',
-          onPress: () => { setVerifiedOnly(false); setAvailableNowOnly(false); },
-        },
-        { text: 'Close', style: 'cancel' },
-      ],
-    );
+    // Pre-populate pending state from current applied state
+    setPendingMinRating(minRating);
+    setPendingMaxPrice(maxPrice);
+    setPendingMaxDist(maxDistanceKm);
+    setPendingVerified(verifiedOnly);
+    setPendingAvailNow(availableNowOnly);
+    setShowFilters(true);
+  };
+
+  const applyFilters = () => {
+    setMinRating(pendingMinRating);
+    setMaxPrice(pendingMaxPrice);
+    setMaxDistanceKm(pendingMaxDist);
+    setVerifiedOnly(pendingVerified);
+    setAvailableNowOnly(pendingAvailNow);
+    setShowFilters(false);
+  };
+
+  const clearAllFilters = () => {
+    setPendingMinRating(0); setPendingMaxPrice(0); setPendingMaxDist(0);
+    setPendingVerified(false); setPendingAvailNow(false);
   };
 
   const results = useMemo<MockSitter[]>(() => {
@@ -73,6 +89,9 @@ export default function SearchScreen() {
       if (q && ![s.firstName, s.lastName, s.neighborhood].some(x => x.toLowerCase().includes(q))) return false;
       if (verifiedOnly && !s.identityVerified) return false;
       if (availableNowOnly && !s.availableNow) return false;
+      if (minRating > 0 && s.averageRating < minRating) return false;
+      if (maxPrice > 0 && s.hourlyRate > maxPrice) return false;
+      if (maxDistanceKm > 0 && s.distanceKm > maxDistanceKm) return false;
       return true;
     });
     return [...list].sort((a, b) => {
@@ -83,7 +102,7 @@ export default function SearchScreen() {
         default:         return 0;
       }
     });
-  }, [query, sort, verifiedOnly, availableNowOnly, sitters]);
+  }, [query, sort, verifiedOnly, availableNowOnly, minRating, maxPrice, maxDistanceKm, sitters]);
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
@@ -244,6 +263,116 @@ export default function SearchScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Filter bottom-sheet modal ── */}
+      <Modal
+        visible={showFilters}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilters(false)}
+      >
+        <Pressable style={s.modalOverlay} onPress={() => setShowFilters(false)}>
+          <Pressable style={s.filterSheet} onPress={e => e.stopPropagation()}>
+            <View style={s.sheetHandle} />
+
+            {/* Header */}
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Filters</Text>
+              <TouchableOpacity onPress={clearAllFilters} hitSlop={8}>
+                <Text style={s.sheetClearAll}>Clear all</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+
+              {/* Verified / Available toggles */}
+              <View style={s.filterSection}>
+                <Text style={s.filterLabel}>Quick filters</Text>
+                <View style={s.toggleRow}>
+                  <TouchableOpacity
+                    style={[s.toggleChip, pendingVerified && s.toggleChipActive]}
+                    onPress={() => setPendingVerified(v => !v)}
+                  >
+                    <Ionicons name="shield-checkmark-outline" size={14} color={pendingVerified ? '#fff' : Colors.light.primary} />
+                    <Text style={[s.toggleChipTxt, pendingVerified && s.toggleChipTxtActive]}>Verified only</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.toggleChip, pendingAvailNow && s.toggleChipActive]}
+                    onPress={() => setPendingAvailNow(v => !v)}
+                  >
+                    <Ionicons name="flash-outline" size={14} color={pendingAvailNow ? '#fff' : Colors.light.primary} />
+                    <Text style={[s.toggleChipTxt, pendingAvailNow && s.toggleChipTxtActive]}>Available now</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Min rating */}
+              <View style={s.filterSection}>
+                <Text style={s.filterLabel}>Minimum rating</Text>
+                <View style={s.ratingRow}>
+                  {[0, 3, 3.5, 4, 4.5].map(r => (
+                    <TouchableOpacity
+                      key={r}
+                      style={[s.ratingChip, pendingMinRating === r && s.ratingChipActive]}
+                      onPress={() => setPendingMinRating(r)}
+                    >
+                      {r === 0 ? (
+                        <Text style={[s.ratingChipTxt, pendingMinRating === r && s.ratingChipTxtActive]}>Any</Text>
+                      ) : (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Ionicons name="star" size={12} color={pendingMinRating === r ? '#fff' : '#F59E0B'} />
+                          <Text style={[s.ratingChipTxt, pendingMinRating === r && s.ratingChipTxtActive]}>{r}+</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Max price */}
+              <View style={s.filterSection}>
+                <Text style={s.filterLabel}>Max price / hour</Text>
+                <View style={s.ratingRow}>
+                  {[0, 300, 400, 500, 700].map(p => (
+                    <TouchableOpacity
+                      key={p}
+                      style={[s.ratingChip, pendingMaxPrice === p && s.ratingChipActive]}
+                      onPress={() => setPendingMaxPrice(p)}
+                    >
+                      <Text style={[s.ratingChipTxt, pendingMaxPrice === p && s.ratingChipTxtActive]}>
+                        {p === 0 ? 'Any' : `≤${p} DZD`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Max distance */}
+              <View style={s.filterSection}>
+                <Text style={s.filterLabel}>Max distance</Text>
+                <View style={s.ratingRow}>
+                  {[0, 1, 3, 5, 10].map(d => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[s.ratingChip, pendingMaxDist === d && s.ratingChipActive]}
+                      onPress={() => setPendingMaxDist(d)}
+                    >
+                      <Text style={[s.ratingChipTxt, pendingMaxDist === d && s.ratingChipTxtActive]}>
+                        {d === 0 ? 'Any' : `≤${d} km`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Apply */}
+            <TouchableOpacity style={s.applyBtn} onPress={applyFilters} activeOpacity={0.9}>
+              <Text style={s.applyBtnTxt}>Show results</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -502,4 +631,66 @@ const s = StyleSheet.create({
     marginTop: 10,
   },
   mapModeBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
+
+  // Filter modal
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  filterSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingBottom: 32,
+    paddingTop: 12,
+    maxHeight: '88%',
+  },
+  sheetHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E5E7EB',
+    alignSelf: 'center', marginBottom: 16,
+  },
+  sheetHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, marginBottom: 16,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  sheetClearAll: { fontSize: 13, fontWeight: '700', color: Colors.light.primary },
+
+  filterSection: { paddingHorizontal: 20, marginBottom: 20 },
+  filterLabel: {
+    fontSize: 11, fontWeight: '700', color: '#6B7280',
+    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10,
+  },
+  toggleRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  toggleChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 999, borderWidth: 1.5,
+    borderColor: Colors.light.primary,
+    backgroundColor: '#FFFFFF',
+  },
+  toggleChipActive: { backgroundColor: Colors.light.primary },
+  toggleChipTxt: { fontSize: 13, fontWeight: '600', color: Colors.light.primary },
+  toggleChipTxtActive: { color: '#FFFFFF' },
+
+  ratingRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  ratingChip: {
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderRadius: 999, borderWidth: 1,
+    borderColor: '#E5E7EB', backgroundColor: '#F9FAFB',
+  },
+  ratingChipActive: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
+  ratingChipTxt: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  ratingChipTxtActive: { color: '#FFFFFF' },
+
+  applyBtn: {
+    marginHorizontal: 20, marginTop: 8,
+    backgroundColor: Colors.light.primary,
+    borderRadius: 16, paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: Colors.light.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 16, elevation: 6,
+  },
+  applyBtnTxt: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
 });
