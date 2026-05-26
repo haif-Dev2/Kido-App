@@ -5,6 +5,22 @@
 import { supabase } from '../supabase';
 import { MOCK_SITTERS, type MockSitter } from '../mock/sitters';
 import { Role } from '../../models/types';
+import { calculateDistance } from '../location-service';
+
+/**
+ * Re-compute distanceKm for every sitter based on the user's real coordinates.
+ * Call after getting the user's location.
+ */
+export function applyRealDistances(
+  sitters: MockSitter[],
+  userLat: number,
+  userLon: number,
+): MockSitter[] {
+  return sitters.map(s => ({
+    ...s,
+    distanceKm: Math.round(calculateDistance(userLat, userLon, s.latitude, s.longitude) * 10) / 10,
+  }));
+}
 
 function hashUUID(uuid: string): number {
   let h = 0;

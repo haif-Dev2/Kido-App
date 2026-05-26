@@ -8,10 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Colors } from '../../constants/Colors';
 import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
-import { fetchSitters } from '../../lib/api/sitters';
+import { fetchSitters, applyRealDistances } from '../../lib/api/sitters';
 import { useFavoritesStore } from '../../store/favorites-store';
 import { Map } from '../../components/ui/Map';
 import { useResponsive } from '../../lib/responsive';
+import { getCurrentLocation } from '../../lib/location-service';
 
 type SortKey = 'relevance' | 'distance' | 'rating' | 'price';
 type ViewMode = 'list' | 'map';
@@ -53,7 +54,20 @@ export default function SearchScreen() {
 
   useEffect(() => { hydrateFavorites(); }, [hydrateFavorites]);
 
-  useEffect(() => { fetchSitters().then(setSitters); }, []);
+  useEffect(() => {
+    // Load sitters then try to get real GPS location and recalculate distances
+    fetchSitters().then(async (list) => {
+      setSitters(list);
+      try {
+        const loc = await getCurrentLocation();
+        if (loc) {
+          setSitters(applyRealDistances(list, loc.latitude, loc.longitude));
+        }
+      } catch {
+        // Location denied or unavailable — keep mock/default distances
+      }
+    });
+  }, []);
 
   const activeFilterCount =
     (verifiedOnly ? 1 : 0) + (availableNowOnly ? 1 : 0) +

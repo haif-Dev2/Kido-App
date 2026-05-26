@@ -9,7 +9,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import { Colors } from '../../constants/Colors';
 import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
-import { fetchSitters } from '../../lib/api/sitters';
+import { fetchSitters, applyRealDistances } from '../../lib/api/sitters';
+import { getCurrentLocation } from '../../lib/location-service';
 import { useAuth } from '../../providers/auth-provider';
 import { supabase } from '../../lib/supabase';
 import { useFavoritesStore } from '../../store/favorites-store';
@@ -62,7 +63,15 @@ export default function HomeScreen() {
   useEffect(() => { hydrateFavorites(); }, [hydrateFavorites]);
 
   useEffect(() => {
-    fetchSitters().then(setSitters);
+    fetchSitters().then(async (list) => {
+      setSitters(list);
+      try {
+        const loc = await getCurrentLocation();
+        if (loc) setSitters(applyRealDistances(list, loc.latitude, loc.longitude));
+      } catch {
+        // Location denied — keep default distances
+      }
+    });
   }, []);
 
   // Refresh unread notifications count whenever this screen gains focus,
