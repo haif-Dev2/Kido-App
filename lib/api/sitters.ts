@@ -30,6 +30,26 @@ function hashUUID(uuid: string): number {
   return Math.abs(h) + 1000;
 }
 
+// Algiers neighbourhood coordinates — used when a sitter's DB row has no lat/lng yet.
+const ALGIERS_COORDS: { lat: number; lon: number }[] = [
+  { lat: 36.7510, lon: 3.0490 }, // Hydra
+  { lat: 36.7917, lon: 3.0500 }, // Bab El Oued
+  { lat: 36.7200, lon: 3.1000 }, // Kouba
+  { lat: 36.7400, lon: 3.0500 }, // Bir Mourad Raïs
+  { lat: 36.7500, lon: 3.0200 }, // El Biar
+  { lat: 36.7500, lon: 2.9500 }, // Dely Ibrahim
+  { lat: 36.7372, lon: 3.0869 }, // Centre
+  { lat: 36.7600, lon: 3.0700 }, // Hussein Dey
+  { lat: 36.7300, lon: 3.0600 }, // Ben Aknoun
+  { lat: 36.7700, lon: 3.0300 }, // Cheraga
+];
+
+function fallbackCoords(uuid: string): { lat: number; lon: number } {
+  let h = 0;
+  for (let i = 0; i < uuid.length; i++) h = (h * 31 + uuid.charCodeAt(i)) | 0;
+  return ALGIERS_COORDS[Math.abs(h) % ALGIERS_COORDS.length];
+}
+
 function rowToMockSitter(row: any): MockSitter {
   const p = row.profile ?? {};
   return {
@@ -60,8 +80,10 @@ function rowToMockSitter(row: any): MockSitter {
     govIdVerified: row.identity_verified ?? false,
     policeCheck: row.police_check ?? false,
     availableNow: row.is_available_now ?? false,
-    latitude: row.latitude ?? 36.7372,
-    longitude: row.longitude ?? 3.0869,
+    // Use real DB coords if available; fall back to a neighbourhood spread
+    // so real sitters don't all cluster at the exact same map point.
+    latitude: row.latitude ?? fallbackCoords(row.profile_id).lat,
+    longitude: row.longitude ?? fallbackCoords(row.profile_id).lon,
   };
 }
 

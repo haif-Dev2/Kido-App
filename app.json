@@ -22,7 +22,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kido.app"
+      "bundleIdentifier": "com.kido.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Kido needs your location to show nearby babysitters and their distance from you.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kido needs your location to show nearby babysitters and their distance from you."
+      }
     },
     "web": {
       "output": "single",
@@ -43,7 +47,16 @@
         }
       ],
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Kido needs your location to show nearby babysitters and their distance from you.",
+          "locationWhenInUsePermission": "Kido needs your location to show nearby babysitters and their distance from you.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
