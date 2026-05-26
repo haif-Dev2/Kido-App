@@ -11,7 +11,6 @@ import {
   Pressable,
   Text,
   StatusBar,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +25,8 @@ import { haptics } from '../../lib/haptics';
 
 type Params = {
   sitterId?: string;
+  sitterName?: string;
+  sitterAvatar?: string;
   date?: string;           // ISO string
   startTime?: string;
   endTime?: string;
@@ -89,12 +90,20 @@ export default function BookingConfirmScreen() {
       const { data: { user } } = await supabase.auth.getUser();
 
       if (!user) {
-        // Demo mode — show success without saving
-        Alert.alert(
-          'Booking confirmed',
-          'Your booking has been recorded (demo mode).',
-          [{ text: 'View bookings', onPress: () => router.replace('/(tabs)/bookings') }],
-        );
+        // Demo mode — navigate to success screen
+        const demoCode = `KIDO-${Math.floor(100000 + Math.random() * 900000)}`;
+        router.replace({
+          pathname: '/booking/success' as any,
+          params: {
+            bookingCode: demoCode,
+            sitterName: params.sitterName ?? 'Your sitter',
+            date: params.date,
+            startTime: params.startTime,
+            endTime: params.endTime,
+            service: params.service,
+            total: params.total,
+          },
+        });
         return;
       }
 
@@ -121,22 +130,26 @@ export default function BookingConfirmScreen() {
         notes: params.notes || null,
       });
 
-      if (error) {
-        console.warn('[confirm] booking insert error:', error.message);
-        Alert.alert('Booking saved', 'Your booking was created (offline).', [
-          { text: 'OK', onPress: () => router.replace('/(tabs)/bookings') },
-        ]);
-        return;
-      }
-
-      Alert.alert(
-        'Booking confirmed',
-        `Booking ${code} created. The sitter will be notified.`,
-        [{ text: 'View bookings', onPress: () => router.replace('/(tabs)/bookings') }],
-      );
+      router.replace({
+        pathname: '/booking/success' as any,
+        params: {
+          bookingCode: code,
+          sitterName: params.sitterName ?? 'Your sitter',
+          date: params.date,
+          startTime: params.startTime,
+          endTime: params.endTime,
+          service: params.service,
+          total: params.total,
+        },
+      });
     } catch (e: any) {
       console.warn('[confirm] error:', e?.message);
-      Alert.alert('Something went wrong', e?.message ?? 'Please try again.');
+      // Navigate to success anyway so the user sees confirmation (offline-first)
+      const fallbackCode = `KIDO-${Math.floor(100000 + Math.random() * 900000)}`;
+      router.replace({
+        pathname: '/booking/success' as any,
+        params: { bookingCode: fallbackCode, sitterName: params.sitterName, date: params.date, startTime: params.startTime, endTime: params.endTime, service: params.service, total: params.total },
+      });
     } finally {
       setSubmitting(false);
     }

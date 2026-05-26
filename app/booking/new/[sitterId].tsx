@@ -7,6 +7,9 @@ import {
   Pressable,
   Text,
   StatusBar,
+  Modal,
+  TouchableOpacity,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -41,8 +44,9 @@ export default function BookingScreen() {
 
   // ---- State ----
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const startTime = '09:00';
+  const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('12:00');
+  const [showTimePicker, setShowTimePicker] = useState<'start' | 'end' | null>(null);
   const [service, setService] = useState<ServiceType>('babysitting');
   const [children, setChildren] = useState(1);
   const [notes, setNotes] = useState('');
@@ -76,11 +80,41 @@ export default function BookingScreen() {
     setEndTime(`${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`);
   };
 
+  const handlePickTime = (type: 'start' | 'end', time: string) => {
+    if (type === 'start') {
+      setStartTime(time);
+      // Keep same duration when shifting start
+      const [sh, sm] = startTime.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      const durationMin = (eh * 60 + em) - (sh * 60 + sm);
+      const [nh, nm] = time.split(':').map(Number);
+      const newEndMin = nh * 60 + nm + Math.max(durationMin, 60);
+      const neh = Math.floor((newEndMin / 60) % 24);
+      const nem = newEndMin % 60;
+      setEndTime(`${String(neh).padStart(2, '0')}:${String(nem).padStart(2, '0')}`);
+    } else {
+      setEndTime(time);
+    }
+    setShowTimePicker(null);
+  };
+
+  // Generate time slots every 30 min from 06:00 to 23:00
+  const timeSlots = useMemo(() => {
+    const slots: string[] = [];
+    for (let h = 6; h <= 23; h++) {
+      slots.push(`${String(h).padStart(2, '0')}:00`);
+      if (h < 23) slots.push(`${String(h).padStart(2, '0')}:30`);
+    }
+    return slots;
+  }, []);
+
   const handleContinue = () => {
     router.push({
       pathname: '/booking/confirm',
       params: {
         sitterId,
+        sitterName: sitterName ?? 'Your sitter',
+        sitterAvatar: sitterAvatar ?? '',
         date: selectedDate.toISOString(),
         startTime,
         endTime,
@@ -156,6 +190,8 @@ export default function BookingScreen() {
               startTime={startTime}
               endTime={endTime}
               hourlyRate={baseRate}
+              onPickStart={() => setShowTimePicker('start')}
+              onPickEnd={() => setShowTimePicker('end')}
               onSetHours={handleSetHours}
             />
           </View>
@@ -203,6 +239,55 @@ export default function BookingScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* ── Time Picker Modal ── */}
+      <Modal
+        visible={showTimePicker !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTimePicker(null)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTimePicker(null)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation()}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHandle} />
+              <Text style={styles.modalTitle}>
+                {showTimePicker === 'start' ? 'Select start time' : 'Select end time'}
+              </Text>
+              <FlatList
+                data={timeSlots}
+                keyExtractor={item => item}
+                style={{ maxHeight: 320 }}
+                showsVerticalScrollIndicator={false}
+                initialScrollIndex={Math.max(0, timeSlots.indexOf(showTimePicker === 'start' ? startTime : endTime))}
+                getItemLayout={(_, index) => ({ length: 52, offset: 52 * index, index })}
+                renderItem={({ item }) => {
+                  const isSelected = item === (showTimePicker === 'start' ? startTime : endTime);
+                  return (
+                    <TouchableOpacity
+                      style={[styles.timeSlot, isSelected && styles.timeSlotActive]}
+                      onPress={() => handlePickTime(showTimePicker!, item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.timeSlotTxt, isSelected && styles.timeSlotTxtActive]}>
+                        {item}
+                      </Text>
+                      {isSelected && <Ionicons name="checkmark" size={18} color="#fff" />}
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowTimePicker(null)}>
+                <Text style={styles.modalCancelTxt}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Bottom Bar — full-width divider, centered content column on tablet+. */}
       <SafeAreaView edges={['bottom']} style={[styles.bottomBarWrap, { alignItems: 'center' }]}>
@@ -301,5 +386,68 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Time picker modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 32,
+    paddingTop: 12,
+  },
+  modalHandle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center', marginBottom: 16,
+  },
+  modalTitle: {
+    fontFamily: fonts.sansBold,
+    fontSize: 15,
+    color: colors.text,
+    textAlign: 'center',
+    marginBottom: 12,
+    letterSpacing: 0.2,
+  },
+  timeSlot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    height: 52,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+  },
+  timeSlotActive: {
+    backgroundColor: colors.primary,
+  },
+  timeSlotTxt: {
+    fontFamily: fonts.serif,
+    fontSize: 20,
+    color: colors.text,
+    letterSpacing: -0.5,
+  },
+  timeSlotTxtActive: {
+    color: '#fff',
+  },
+  modalCancel: {
+    marginTop: 16,
+    marginHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  modalCancelTxt: {
+    fontFamily: fonts.sansBold,
+    fontSize: 14,
+    color: colors.textMuted,
   },
 });

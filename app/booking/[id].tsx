@@ -292,10 +292,29 @@ export default function BookingDetailScreen() {
           {status === BookingStatus.CONFIRMED && (
             <View className="flex-row gap-3">
               <View className="flex-1">
-                <Button label="Message" variant="soft" size="lg" leftIcon={MessageCircle} onPress={() => haptics.tap()} />
+                <Button
+                  label="Message"
+                  variant="soft"
+                  size="lg"
+                  leftIcon={MessageCircle}
+                  onPress={() => router.push({
+                    pathname: '/chat/[sitterId]' as any,
+                    params: {
+                      sitterId: String(sitter.uuid ?? sitter.id),
+                      sitterName: `${sitter.firstName} ${sitter.lastName}`,
+                      sitterAvatar: sitter.photo,
+                    },
+                  })}
+                />
               </View>
               <View className="flex-1">
-                <Button label="Call" variant="secondary" size="lg" leftIcon={Phone} onPress={() => haptics.tap()} />
+                <Button
+                  label="Call"
+                  variant="secondary"
+                  size="lg"
+                  leftIcon={Phone}
+                  onPress={() => haptics.medium()}
+                />
               </View>
             </View>
           )}
