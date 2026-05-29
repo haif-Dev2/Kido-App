@@ -14,7 +14,8 @@ import { getCurrentLocation } from '../../lib/location-service';
 import { useAuth } from '../../providers/auth-provider';
 import { supabase } from '../../lib/supabase';
 import { useFavoritesStore } from '../../store/favorites-store';
-import { useResponsive } from '../../lib/responsive';
+import { useResponsive, fluid, MAX_CONTENT_WIDTH } from '../../lib/responsive';
+import { VisitorBanner } from '../../components/ui/VisitorBanner';
 
 function getGreeting(date: Date = new Date()): string {
   const h = date.getHours();
@@ -37,27 +38,48 @@ function applyFilter(list: MockSitter[], filter: FilterKey): MockSitter[] {
   }
 }
 
+/* ── Centred content wrapper — caps width on desktop ── */
+function ContentWrap({ children, hp, maxW = MAX_CONTENT_WIDTH }: {
+  children: React.ReactNode;
+  hp: number;
+  maxW?: number;
+}) {
+  return (
+    <View style={{ maxWidth: maxW, width: '100%', alignSelf: 'center', paddingHorizontal: hp }}>
+      {children}
+    </View>
+  );
+}
+
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { profile, session } = useAuth();
-  const { isTablet, isDesktop } = useResponsive();
-  const [filter, setFilter] = useState<FilterKey>('all');
+  const insets   = useSafeAreaInsets();
+  const router   = useRouter();
+  const { profile, session, isVisitor } = useAuth();
+  const { isTablet, isDesktop, isWide, hPad, width: vw } = useResponsive();
+
+  const [filter,      setFilter]      = useState<FilterKey>('all');
   const [unreadCount, setUnreadCount] = useState(0);
-  const [greeting, setGreeting] = useState<string>(() => getGreeting());
-  const [refreshing, setRefreshing] = useState(false);
-  const [sitters, setSitters] = useState<MockSitter[]>(MOCK_SITTERS);
+  const [greeting,    setGreeting]    = useState<string>(() => getGreeting());
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [sitters,     setSitters]     = useState<MockSitter[]>(MOCK_SITTERS);
 
-  // Responsive grid: 1 column on phones, 2 on tablets (768–1023),
-  // 3 on desktop (1024+). Used for the "Top Rated" and "Recently Active"
-  // sections; the "Nearby" rail keeps its horizontal carousel everywhere.
-  const gridCols = isDesktop ? 3 : isTablet ? 2 : 1;
-  // Show more sitters on bigger viewports — there's room to fill.
-  const cardLimit = isDesktop ? 9 : isTablet ? 6 : 3;
+  // Responsive layout values
+  const gridCols       = isDesktop ? 3 : isTablet ? 2 : 1;
+  const cardLimit      = isDesktop ? 9 : isTablet ? 6 : 3;
+  // Nearby card: wider on bigger screens
+  const nearbyCardW    = isDesktop ? 220 : isTablet ? 200 : 170;
+  // On desktop the nearby section wraps into a grid instead of a carousel
+  const nearbyAsGrid   = isDesktop || isTablet;
+  // Max width for the hero inner content
+  const heroMaxW       = isWide ? MAX_CONTENT_WIDTH : undefined;
 
-  // Shared favorites store (synced with the Search tab and persisted to AsyncStorage).
-  const favoriteIds   = useFavoritesStore(s => s.ids);
-  const toggleFavorite = useFavoritesStore(s => s.toggle);
+  // Fluid typography
+  const greetingFs = fluid(13, 16, vw);
+  const nameFs     = fluid(22, 30, vw);
+  const sectionFs  = fluid(17, 22, vw);
+
+  const favoriteIds      = useFavoritesStore(s => s.ids);
+  const toggleFavorite   = useFavoritesStore(s => s.toggle);
   const hydrateFavorites = useFavoritesStore(s => s.hydrate);
 
   useEffect(() => { hydrateFavorites(); }, [hydrateFavorites]);
@@ -68,31 +90,19 @@ export default function HomeScreen() {
       try {
         const loc = await getCurrentLocation();
         if (loc) setSitters(applyRealDistances(list, loc.latitude, loc.longitude));
-      } catch {
-        // Location denied — keep default distances
-      }
+      } catch { /* Location denied — keep default distances */ }
     });
   }, []);
 
-  // Refresh unread notifications count whenever this screen gains focus,
-  // and re-evaluate the time-of-day greeting.
   const fetchUnreadCount = useCallback(async () => {
     const userId = session?.user?.id;
-    if (!userId) {
-      // Fallback for the demo: keep showing 3 unread when not signed-in.
-      setUnreadCount(3);
-      return;
-    }
+    if (!userId) { setUnreadCount(3); return; }
     const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('is_read', false);
-    if (error) {
-      console.warn('[home] unread count error:', error.message);
-      setUnreadCount(0);
-      return;
-    }
+    if (error) { console.warn('[home] unread count error:', error.message); setUnreadCount(0); return; }
     setUnreadCount(count ?? 0);
   }, [session?.user?.id]);
 
@@ -100,10 +110,7 @@ export default function HomeScreen() {
     useCallback(() => {
       let cancelled = false;
       setGreeting(getGreeting());
-      (async () => {
-        await fetchUnreadCount();
-        if (cancelled) return;
-      })();
+      (async () => { await fetchUnreadCount(); if (cancelled) return; })();
       return () => { cancelled = true; };
     }, [fetchUnreadCount]),
   );
@@ -114,25 +121,6 @@ export default function HomeScreen() {
     await Promise.all([fetchUnreadCount(), fetchSitters().then(setSitters)]);
     setRefreshing(false);
   }, [fetchUnreadCount]);
-
-  const handleNotifications = () => {
-    router.push('/notifications');
-  };
-
-  const handlePromo = () => {
-    Alert.alert(
-      'Promo code applied!',
-      'Use code KIDO20 at checkout to get 20% off your first booking.',
-      [
-        { text: 'Browse sitters', onPress: () => router.push('/(tabs)/search') },
-        { text: 'OK', style: 'cancel' },
-      ]
-    );
-  };
-
-  const handleBookNow = (sitterId: string) => {
-    router.push({ pathname: '/sitter/[id]', params: { id: sitterId } });
-  };
 
   const greetingName = profile
     ? `${profile.first_name} ${profile.last_name}`.trim() || profile.email.split('@')[0]
@@ -149,17 +137,16 @@ export default function HomeScreen() {
     () => [...filtered].sort((a, b) => b.averageRating - a.averageRating).slice(0, cardLimit),
     [filtered, cardLimit],
   );
-  // "Recently Active" = available-now sitters that aren't already shown above.
-  // Falls back to the rest of the filtered list (excluding top rated) when no one is "now".
   const recent = useMemo(() => {
     const topRatedIds = new Set(topRated.map(s => s.id));
-    const available  = filtered.filter(s => s.availableNow && !topRatedIds.has(s.id));
+    const available   = filtered.filter(s => s.availableNow && !topRatedIds.has(s.id));
     if (available.length > 0) return available.slice(0, cardLimit);
     return filtered.filter(s => !topRatedIds.has(s.id)).slice(0, cardLimit);
   }, [filtered, topRated, cardLimit]);
 
   return (
-    <View style={[s.page, { paddingTop: insets.top }]}>
+    <View style={s.page}>
+      {isVisitor && <VisitorBanner />}
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
@@ -172,130 +159,168 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Greeting */}
-        <View style={s.headerRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.greeting}>{greeting} <Text>🧡</Text></Text>
-            <Text style={s.userName} numberOfLines={1}>{greetingName}</Text>
-          </View>
-
-          <TouchableOpacity
-            style={s.iconBtn}
-            onPress={handleNotifications}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={
-              unreadCount > 0
-                ? `Notifications, ${unreadCount} unread`
-                : 'Notifications'
-            }
-          >
-            <Ionicons name="notifications-outline" size={20} color={Colors.light.text} />
-            {unreadCount > 0 ? (
-              <View style={s.bellBadge}>
-                <Text style={s.bellBadgeText}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
-            <Image
-              source={{ uri: photoUri }}
-              style={s.avatarSm}
-              contentFit="cover"
-              transition={200}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search bar */}
-        <Pressable
-          style={s.searchBar}
-          onPress={() => router.push('/(tabs)/search')}
-          accessibilityRole="search"
-        >
-          <Ionicons name="search" size={18} color="#9CA3AF" />
-          <Text style={s.searchPlaceholder}>Search babysitters near you...</Text>
-          <View style={s.searchAction}>
-            <Ionicons name="options-outline" size={18} color="#FFFFFF" />
-          </View>
-        </Pressable>
-
-        {/* Promo banner — teal with subtle coral accent */}
-        <Pressable
-          style={({ pressed }) => [s.promo, pressed && { opacity: 0.94 }]}
-          onPress={handlePromo}
-          accessibilityRole="button"
-          accessibilityLabel="Promo: 20% off first booking"
-        >
+        {/* ── Gradient hero ── */}
+        <View style={s.hero}>
           <LinearGradient
-            colors={[Colors.light.primary, '#005C68']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            colors={[Colors.light.primary, '#006B79']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          <View style={s.promoIconWrap}>
-            <Ionicons name="sparkles" size={20} color="#FFFFFF" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.promoTitle}>First booking? Get 20% off</Text>
-            <Text style={s.promoSubtitle}>Use code KIDO20 at checkout</Text>
-          </View>
-          <View style={s.promoArrow}>
-            <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
-          </View>
-        </Pressable>
+          <View style={s.heroBlob1} />
+          <View style={s.heroBlob2} />
 
-        {/* Filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-          style={{ marginTop: 16 }}
-        >
-          <Chip label="All"           active={filter === 'all'}        onPress={() => setFilter('all')} />
-          <Chip label="Babysitter"    active={filter === 'babysitter'} onPress={() => setFilter('babysitter')} />
-          <Chip label="Available Now" active={filter === 'now'}        onPress={() => setFilter('now')} />
-          <Chip label="Verified"      active={filter === 'verified'}   onPress={() => setFilter('verified')} icon="checkmark-circle" />
-          <Chip label="Near Me"       active={filter === 'near'}       onPress={() => setFilter('near')} />
-        </ScrollView>
+          {/* Inner hero content — centered & capped on wide screens */}
+          <View style={{ maxWidth: heroMaxW, width: '100%', alignSelf: 'center' }}>
+            {/* Header row */}
+            <View style={[s.headerRow, { paddingTop: insets.top + 10, paddingHorizontal: hPad }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.greeting, { fontSize: greetingFs }]}>
+                  {greeting} <Text>🧡</Text>
+                </Text>
+                <Text style={[s.userName, { fontSize: nameFs }]} numberOfLines={1}>
+                  {greetingName}
+                </Text>
+              </View>
 
-        {/* Nearby Babysitters */}
-        <SectionHeader title="Nearby Babysitters" onSeeAll={() => router.push('/(tabs)/search')} />
-        {nearby.length === 0 ? (
-          <EmptyMessage label="No sitters match this filter" />
-        ) : (
+              <TouchableOpacity
+                style={s.iconBtn}
+                onPress={() => router.push('/notifications')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+              >
+                <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+                {unreadCount > 0 ? (
+                  <View style={s.bellBadge}>
+                    <Text style={s.bellBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+                <Image source={{ uri: photoUri }} style={s.avatarSm} contentFit="cover" transition={200} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search bar — floats on gradient */}
+            <Pressable
+              style={[s.searchBar, { marginHorizontal: hPad, marginTop: isDesktop ? 24 : 18 }]}
+              onPress={() => router.push('/(tabs)/search')}
+              accessibilityRole="search"
+            >
+              <Ionicons name="search" size={18} color="#9CA3AF" />
+              <Text style={s.searchPlaceholder}>Search babysitters near you...</Text>
+              <View style={s.searchAction}>
+                <Ionicons name="options-outline" size={18} color="#FFFFFF" />
+              </View>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* ── Promo banner ── */}
+        <ContentWrap hp={hPad}>
+          <Pressable
+            style={({ pressed }) => [s.promo, pressed && { opacity: 0.94 }]}
+            onPress={() => Alert.alert(
+              'Promo code applied!',
+              'Use code KIDO20 at checkout to get 20% off your first booking.',
+              [
+                { text: 'Browse sitters', onPress: () => router.push('/(tabs)/search') },
+                { text: 'OK', style: 'cancel' },
+              ]
+            )}
+            accessibilityRole="button"
+            accessibilityLabel="Promo: 20% off first booking"
+          >
+            <LinearGradient
+              colors={['#FF8A5B', '#EC5C8D']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={s.promoIconWrap}>
+              <Ionicons name="sparkles" size={isTablet ? 24 : 20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.promoTitle, isTablet && { fontSize: 16 }]}>First booking? Get 20% off</Text>
+              <Text style={[s.promoSubtitle, isTablet && { fontSize: 13 }]}>Use code KIDO20 at checkout</Text>
+            </View>
+            <View style={s.promoArrow}>
+              <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+            </View>
+          </Pressable>
+        </ContentWrap>
+
+        {/* ── Filter chips ── */}
+        <View style={{ maxWidth: heroMaxW, alignSelf: 'center', width: '100%' }}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 12, paddingBottom: 4 }}
+            contentContainerStyle={{ paddingHorizontal: hPad, gap: 8 }}
+            style={{ marginTop: 18 }}
+          >
+            <Chip label="All"           active={filter === 'all'}        onPress={() => setFilter('all')} />
+            <Chip label="Babysitter"    active={filter === 'babysitter'} onPress={() => setFilter('babysitter')} />
+            <Chip label="Available Now" active={filter === 'now'}        onPress={() => setFilter('now')} />
+            <Chip label="Verified"      active={filter === 'verified'}   onPress={() => setFilter('verified')} icon="checkmark-circle" />
+            <Chip label="Near Me"       active={filter === 'near'}       onPress={() => setFilter('near')} />
+          </ScrollView>
+        </View>
+
+        {/* ── Nearby Babysitters ── */}
+        <SectionHeader title="Nearby Babysitters" hp={hPad} sectionFs={sectionFs} onSeeAll={() => router.push('/(tabs)/search')} />
+        {nearby.length === 0 ? (
+          <ContentWrap hp={hPad}><EmptyMessage label="No sitters match this filter" /></ContentWrap>
+        ) : nearbyAsGrid ? (
+          // Tablet/desktop: wrap grid
+          <ContentWrap hp={hPad - 6}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {nearby.map(sitter => (
+                <View key={sitter.id} style={{ width: `${100 / (isDesktop ? 4 : 3)}%`, paddingHorizontal: 6, paddingBottom: 12 }}>
+                  <NearbyCard
+                    sitter={sitter}
+                    cardWidth={undefined}
+                    onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
+                    onBook={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
+                  />
+                </View>
+              ))}
+            </View>
+          </ContentWrap>
+        ) : (
+          // Phone: horizontal carousel
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: hPad, gap: 12, paddingBottom: 4 }}
           >
             {nearby.map(sitter => (
               <NearbyCard
                 key={sitter.id}
                 sitter={sitter}
+                cardWidth={nearbyCardW}
                 onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
-                onBook={() => handleBookNow(sitter.uuid ?? String(sitter.id))}
+                onBook={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
               />
             ))}
           </ScrollView>
         )}
 
-        {/* Top Rated This Week */}
-        <SectionHeader title="Top Rated This Week" onSeeAll={() => router.push('/(tabs)/search')} />
+        {/* ── Top Rated This Week ── */}
+        <SectionHeader title="Top Rated This Week" hp={hPad} sectionFs={sectionFs} onSeeAll={() => router.push('/(tabs)/search')} />
         <ResponsiveSitterGrid
           cols={gridCols}
+          hp={hPad}
           sitters={topRated}
           favoriteIds={favoriteIds}
           onToggleFavorite={toggleFavorite}
           router={router}
         />
 
-        {/* Recently Active */}
-        <SectionHeader title="Recently Active" onSeeAll={() => router.push('/(tabs)/search')} />
+        {/* ── Recently Active ── */}
+        <SectionHeader title="Recently Active" hp={hPad} sectionFs={sectionFs} onSeeAll={() => router.push('/(tabs)/search')} />
         <ResponsiveSitterGrid
           cols={gridCols}
+          hp={hPad}
           sitters={recent}
           favoriteIds={favoriteIds}
           onToggleFavorite={toggleFavorite}
@@ -306,6 +331,7 @@ export default function HomeScreen() {
   );
 }
 
+/* ──────────────────────────────── EmptyMessage ──────────────────────────────── */
 function EmptyMessage({ label }: { label: string }) {
   return (
     <View style={s.emptyBox}>
@@ -315,16 +341,12 @@ function EmptyMessage({ label }: { label: string }) {
   );
 }
 
-/**
- * Responsive sitter grid: 1/2/3 columns based on viewport.
- * On phones it falls back to a vertical list of full-width row cards
- * (matches the original mobile design). On tablets/desktop the cards wrap
- * into a CSS-flex-style grid with even gaps.
- */
+/* ──────────────────────────────── ResponsiveSitterGrid ──────────────────────────────── */
 function ResponsiveSitterGrid({
-  cols, sitters, favoriteIds, onToggleFavorite, router,
+  cols, hp, sitters, favoriteIds, onToggleFavorite, router,
 }: {
   cols: number;
+  hp: number;
   sitters: MockSitter[];
   favoriteIds: Set<number>;
   onToggleFavorite: (id: number) => void;
@@ -332,41 +354,35 @@ function ResponsiveSitterGrid({
 }) {
   if (sitters.length === 0) {
     return (
-      <View style={{ paddingHorizontal: 20 }}>
-        <EmptyMessage label="No sitters match this filter" />
-      </View>
+      <ContentWrap hp={hp}><EmptyMessage label="No sitters match this filter" /></ContentWrap>
     );
   }
 
-  // Single column → keep the original RowCard list (full width).
   if (cols === 1) {
     return (
-      <View style={{ paddingHorizontal: 20, gap: 10 }}>
-        {sitters.map(sitter => (
-          <RowCard
-            key={sitter.id}
-            sitter={sitter}
-            isFavorite={favoriteIds.has(sitter.id)}
-            onToggleFavorite={() => onToggleFavorite(sitter.id)}
-            onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
-          />
-        ))}
-      </View>
+      <ContentWrap hp={hp}>
+        <View style={{ gap: 10 }}>
+          {sitters.map(sitter => (
+            <RowCard
+              key={sitter.id}
+              sitter={sitter}
+              isFavorite={favoriteIds.has(sitter.id)}
+              onToggleFavorite={() => onToggleFavorite(sitter.id)}
+              onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
+            />
+          ))}
+        </View>
+      </ContentWrap>
     );
   }
 
-  // Multi-column grid (tablet/desktop). Use flexBasis with a small gap so
-  // each row evenly distributes — works in both react-native-web and native.
-  const gap = 12;
+  const gap   = 14;
   const basis = `${100 / cols}%` as const;
   return (
-    <View style={{ paddingHorizontal: 20 - gap / 2 }}>
+    <ContentWrap hp={hp - gap / 2}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {sitters.map(sitter => (
-          <View
-            key={sitter.id}
-            style={{ width: basis, paddingHorizontal: gap / 2, paddingBottom: gap }}
-          >
+          <View key={sitter.id} style={{ width: basis, paddingHorizontal: gap / 2, paddingBottom: gap }}>
             <RowCard
               sitter={sitter}
               isFavorite={favoriteIds.has(sitter.id)}
@@ -376,12 +392,11 @@ function ResponsiveSitterGrid({
           </View>
         ))}
       </View>
-    </View>
+    </ContentWrap>
   );
 }
 
 /* ──────────────────────────────── Chip ──────────────────────────────── */
-
 function Chip({
   label, active, onPress, icon,
 }: {
@@ -397,24 +412,26 @@ function Chip({
       accessibilityState={{ selected: active }}
     >
       {icon ? (
-        <Ionicons
-          name={icon}
-          size={14}
-          color={active ? '#FFFFFF' : Colors.light.primary}
-          style={{ marginRight: 4 }}
-        />
+        <Ionicons name={icon} size={14} color={active ? '#FFFFFF' : Colors.light.primary} style={{ marginRight: 4 }} />
       ) : null}
       <Text style={[s.chipText, active && s.chipTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-/* ──────────────────────────────── Section header ──────────────────────────────── */
-
-function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => void }) {
+/* ──────────────────────────────── SectionHeader ──────────────────────────────── */
+function SectionHeader({ title, hp, sectionFs, onSeeAll }: {
+  title: string;
+  hp: number;
+  sectionFs: number;
+  onSeeAll?: () => void;
+}) {
   return (
-    <View style={s.sectionRow}>
-      <Text style={s.sectionTitle}>{title}</Text>
+    <View style={[s.sectionRow, { paddingHorizontal: hp, maxWidth: MAX_CONTENT_WIDTH, alignSelf: 'center', width: '100%' }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={s.sectionAccent} />
+        <Text style={[s.sectionTitle, { fontSize: sectionFs }]}>{title}</Text>
+      </View>
       {onSeeAll ? (
         <TouchableOpacity onPress={onSeeAll} activeOpacity={0.7} hitSlop={10}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -427,32 +444,31 @@ function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => vo
   );
 }
 
-/* ──────────────────────────────── Nearby tile card ──────────────────────────────── */
-
+/* ──────────────────────────────── NearbyCard ──────────────────────────────── */
 function NearbyCard({
-  sitter, onPress, onBook,
+  sitter, cardWidth, onPress, onBook,
 }: {
-  sitter: MockSitter; onPress: () => void; onBook: () => void;
+  sitter: MockSitter;
+  cardWidth: number | undefined;
+  onPress: () => void;
+  onBook: () => void;
 }) {
   return (
-    <TouchableOpacity style={s.nearbyCard} activeOpacity={0.92} onPress={onPress}>
+    <TouchableOpacity
+      style={[s.nearbyCard, cardWidth != null && { width: cardWidth }]}
+      activeOpacity={0.92}
+      onPress={onPress}
+    >
       <View style={{ alignItems: 'center' }}>
         <View>
-          <Image
-            source={{ uri: sitter.photo }}
-            style={s.nearbyAvatar}
-            contentFit="cover"
-            transition={200}
-          />
+          <Image source={{ uri: sitter.photo }} style={s.nearbyAvatar} contentFit="cover" transition={200} />
           {sitter.identityVerified ? (
             <View style={s.verifiedDot}>
               <Ionicons name="checkmark" size={10} color="#FFFFFF" />
             </View>
           ) : null}
         </View>
-        <Text style={s.nearbyName} numberOfLines={1}>
-          {sitter.firstName} {sitter.lastName}
-        </Text>
+        <Text style={s.nearbyName} numberOfLines={1}>{sitter.firstName} {sitter.lastName}</Text>
         <View style={s.nearbyDistanceRow}>
           <Ionicons name="location-outline" size={11} color="#9CA3AF" />
           <Text style={s.nearbyDistance}>{sitter.distanceKm}km away</Text>
@@ -462,12 +478,8 @@ function NearbyCard({
       <View style={{ alignItems: 'center', marginTop: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {[1, 2, 3, 4, 5].map(i => (
-            <Ionicons
-              key={i}
-              name="star"
-              size={11}
-              color={i <= Math.round(sitter.averageRating) ? '#F5A524' : '#E5E7EB'}
-            />
+            <Ionicons key={i} name="star" size={11}
+              color={i <= Math.round(sitter.averageRating) ? '#F5A524' : '#E5E7EB'} />
           ))}
           <Text style={s.reviewCount}> {sitter.averageRating.toFixed(1)} ({sitter.reviewsCount})</Text>
         </View>
@@ -497,8 +509,7 @@ function NearbyCard({
   );
 }
 
-/* ──────────────────────────────── Row card (list item) ──────────────────────────────── */
-
+/* ──────────────────────────────── RowCard ──────────────────────────────── */
 function RowCard({
   sitter, onPress, isFavorite, onToggleFavorite,
 }: {
@@ -513,29 +524,20 @@ function RowCard({
       accessibilityLabel={`${sitter.firstName} ${sitter.lastName}, ${sitter.averageRating} stars`}
     >
       <View style={s.rowAccent} />
-      <View style={{ flexDirection: 'row', flex: 1, padding: 12, alignItems: 'flex-start' }}>
+      <View style={{ flexDirection: 'row', flex: 1, padding: 14, alignItems: 'flex-start' }}>
         <View>
-          <Image
-            source={{ uri: sitter.photo }}
-            style={s.rowAvatar}
-            contentFit="cover"
-            transition={200}
-          />
+          <Image source={{ uri: sitter.photo }} style={s.rowAvatar} contentFit="cover" transition={200} />
           {sitter.identityVerified ? (
             <View style={[s.verifiedDot, { top: -3, right: -3 }]}>
               <Ionicons name="checkmark" size={9} color="#FFFFFF" />
             </View>
           ) : null}
-          {sitter.availableNow ? (
-            <View style={s.onlineDot} />
-          ) : null}
+          {sitter.availableNow ? <View style={s.onlineDot} /> : null}
         </View>
 
-        <View style={{ flex: 1, marginLeft: 12 }}>
+        <View style={{ flex: 1, marginLeft: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={s.rowName} numberOfLines={1}>
-              {sitter.firstName} {sitter.lastName}
-            </Text>
+            <Text style={s.rowName} numberOfLines={1}>{sitter.firstName} {sitter.lastName}</Text>
             {sitter.identityVerified ? (
               <Ionicons name="checkmark-circle" size={14} color={Colors.light.primary} style={{ marginLeft: 4 }} />
             ) : null}
@@ -546,21 +548,13 @@ function RowCard({
               Algiers, {sitter.neighborhood} · {sitter.distanceKm}km
             </Text>
           </View>
-
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
             {[1, 2, 3, 4, 5].map(i => (
-              <Ionicons
-                key={i}
-                name="star"
-                size={12}
-                color={i <= Math.round(sitter.averageRating) ? '#F5A524' : '#E5E7EB'}
-              />
+              <Ionicons key={i} name="star" size={12}
+                color={i <= Math.round(sitter.averageRating) ? '#F5A524' : '#E5E7EB'} />
             ))}
-            <Text style={s.rowReviewCount}>
-              {' '}{sitter.averageRating.toFixed(1)} ({sitter.reviewsCount})
-            </Text>
+            <Text style={s.rowReviewCount}> {sitter.averageRating.toFixed(1)} ({sitter.reviewsCount})</Text>
           </View>
-
           <View style={s.rowChipsRow}>
             <TinyChip label={sitter.experience} tone="neutral" />
             {sitter.identityVerified && <TinyChip label="Verified" tone="primary" icon="checkmark-circle" />}
@@ -575,14 +569,12 @@ function RowCard({
         </View>
 
         <View style={{ alignItems: 'flex-end' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-            <Text style={s.priceBig}>{sitter.hourlyRate}</Text>
-          </View>
+          <Text style={s.priceBig}>{sitter.hourlyRate}</Text>
           <Text style={s.priceSmall}>DZD/hr</Text>
           <TouchableOpacity
             onPress={(e) => { e.stopPropagation(); onToggleFavorite(); }}
             hitSlop={10}
-            style={{ marginTop: 6, padding: 2 }}
+            style={{ marginTop: 8, padding: 2 }}
             accessibilityRole="button"
             accessibilityLabel={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
@@ -598,13 +590,14 @@ function RowCard({
   );
 }
 
+/* ──────────────────────────────── TinyChip ──────────────────────────────── */
 function TinyChip({
   label, tone, icon,
 }: {
   label: string; tone: 'primary' | 'neutral'; icon?: keyof typeof Ionicons.glyphMap;
 }) {
-  const bg = tone === 'primary' ? Colors.light.primaryLight : '#FFFFFF';
-  const fg = tone === 'primary' ? Colors.light.primary : '#6B7280';
+  const bg          = tone === 'primary' ? Colors.light.primaryLight : '#FFFFFF';
+  const fg          = tone === 'primary' ? Colors.light.primary : '#6B7280';
   const borderColor = tone === 'primary' ? Colors.light.primaryLight : '#E5E7EB';
   return (
     <View style={[s.tinyChip, { backgroundColor: bg, borderColor }]}>
@@ -614,150 +607,172 @@ function TinyChip({
   );
 }
 
-/* ──────────────────────────────── styles ──────────────────────────────── */
-
+/* ──────────────────────────────── Styles ──────────────────────────────── */
 const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#FAF7F2' },
+  page: { flex: 1, backgroundColor: '#F4F6F9' },
 
-  // Header
+  /* ── Hero ── */
+  hero: {
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    paddingBottom: 22,
+    overflow: 'hidden',
+    shadowColor: Colors.light.primary,
+    shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 10 },
+    elevation: 7,
+  },
+  heroBlob1: {
+    position: 'absolute', top: -40, right: -30,
+    width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.09)',
+  },
+  heroBlob2: {
+    position: 'absolute', bottom: 0, left: -50,
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+
+  /* ── Header row ── */
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 4,
-    gap: 10,
+    paddingBottom: 6,
+    gap: 12,
   },
-  greeting: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
-  userName: { fontSize: 22, fontWeight: '800', color: Colors.light.text, marginTop: 2 },
+  greeting: { color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+  userName:  { fontWeight: '800', color: '#FFFFFF', marginTop: 2 },
   iconBtn: {
-    // Min 44×44 to meet Apple HIG / Material specs across all viewports.
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F0F0F0',
+    width: 46, height: 46, borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center', justifyContent: 'center', position: 'relative',
   },
   bellBadge: {
-    position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#EC4899', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
+    position: 'absolute', top: -5, right: -5,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#FF5A8A',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
     borderWidth: 2, borderColor: '#FFFFFF',
   },
   bellBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
-  // Avatar bumped from 40 → 44 to satisfy the 44×44 tap-target minimum
-  // when used as a button to the profile tab.
-  avatarSm: { width: 44, height: 44, borderRadius: 22 },
+  avatarSm: {
+    width: 46, height: 46, borderRadius: 23,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.55)',
+  },
 
-  // Search
+  /* ── Search bar ── */
   searchBar: {
-    marginHorizontal: 20, marginTop: 14,
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderWidth: 1, borderColor: '#EDEDED',
-    borderRadius: 14, height: 52,
+    borderRadius: 16, height: 56,
     paddingHorizontal: 14, gap: 10,
+    shadowColor: '#000', shadowOpacity: 0.13, shadowRadius: 16, shadowOffset: { width: 0, height: 7 },
+    elevation: 5,
   },
   searchPlaceholder: { flex: 1, color: '#9CA3AF', fontSize: 14 },
   searchAction: {
-    width: 36, height: 36, borderRadius: 10,
+    width: 38, height: 38, borderRadius: 12,
     backgroundColor: Colors.light.primary,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // Promo
+  /* ── Promo ── */
   promo: {
-    marginHorizontal: 20, marginTop: 14,
-    height: 72, borderRadius: 16, overflow: 'hidden',
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 14,
-    shadowColor: Colors.light.primary, shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    marginTop: 18,
+    height: 76, borderRadius: 18, overflow: 'hidden',
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, gap: 14,
+    shadowColor: '#EC5C8D', shadowOpacity: 0.24, shadowRadius: 14, shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
   promoIconWrap: {
-    width: 42, height: 42, borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center', justifyContent: 'center',
   },
-  promoTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  promoSubtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '500', marginTop: 2 },
+  promoTitle:    { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  promoSubtitle: { color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '500', marginTop: 2 },
   promoArrow: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // Chips
+  /* ── Filter chips ── */
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999,
     backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB',
     minHeight: 40,
   },
-  chipActive: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
-  chipText: { fontSize: 13, color: Colors.light.text, fontWeight: '600' },
+  chipActive:     { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
+  chipText:       { fontSize: 13, color: Colors.light.text, fontWeight: '600' },
   chipTextActive: { color: '#FFFFFF' },
 
-  // Section header
+  /* ── Section header ── */
   sectionRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, marginTop: 20, marginBottom: 10,
+    marginTop: 22, marginBottom: 12,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: Colors.light.text },
-  seeAllText: { color: Colors.light.primary, fontSize: 13, fontWeight: '600', marginRight: 2 },
+  sectionTitle:  { fontWeight: '800', color: Colors.light.text },
+  sectionAccent: { width: 4, height: 20, borderRadius: 2, backgroundColor: Colors.light.primary },
+  seeAllText:    { color: Colors.light.primary, fontSize: 13, fontWeight: '600', marginRight: 2 },
 
-  // Nearby tile
+  /* ── Nearby tile ── */
   nearbyCard: {
     width: 170, padding: 14,
-    backgroundColor: '#FFFFFF', borderRadius: 16,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 3 },
+    backgroundColor: '#FFFFFF', borderRadius: 18,
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  nearbyAvatar: { width: 64, height: 64, borderRadius: 32 },
+  nearbyAvatar: { width: 68, height: 68, borderRadius: 34 },
   verifiedDot: {
     position: 'absolute', top: -2, right: -2,
-    width: 18, height: 18, borderRadius: 9,
+    width: 20, height: 20, borderRadius: 10,
     backgroundColor: '#10B981',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: '#FFFFFF',
   },
-  nearbyName: { fontSize: 14, fontWeight: '700', color: Colors.light.text, marginTop: 8, textAlign: 'center' },
+  nearbyName:        { fontSize: 14, fontWeight: '700', color: Colors.light.text, marginTop: 8, textAlign: 'center' },
   nearbyDistanceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  nearbyDistance: { fontSize: 11, color: '#9CA3AF', marginLeft: 2 },
-  reviewCount: { fontSize: 11, color: '#6B7280', fontWeight: '500' },
+  nearbyDistance:    { fontSize: 11, color: '#9CA3AF', marginLeft: 2 },
+  reviewCount:       { fontSize: 11, color: '#6B7280', fontWeight: '500' },
   verifiedPill: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999,
     backgroundColor: Colors.light.primaryLight, marginTop: 6, gap: 3,
   },
   verifiedPillText: { color: Colors.light.primary, fontSize: 11, fontWeight: '700' },
-  priceBig: { fontSize: 20, fontWeight: '800', color: Colors.light.primary },
+  priceBig:   { fontSize: 20, fontWeight: '800', color: Colors.light.primary },
   priceSmall: { fontSize: 11, color: '#6B7280', fontWeight: '500' },
   bookBtn: {
     backgroundColor: Colors.light.primary,
-    borderRadius: 999, height: 44, // bumped 38 → 44 (HIG tap-target min)
+    borderRadius: 999, height: 44,
     alignItems: 'center', justifyContent: 'center',
     marginTop: 12,
   },
   bookBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
-  // Row card
+  /* ── Row card ── */
   rowCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: 14, overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 10, shadowOffset: { width: 0, height: 2 },
+    borderRadius: 16, overflow: 'hidden',
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 12, shadowOffset: { width: 0, height: 3 },
     elevation: 1,
   },
-  rowAccent: { width: 3, backgroundColor: Colors.light.primary },
-  rowAvatar: { width: 48, height: 48, borderRadius: 10 },
-  rowName: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
-  rowLocation: { fontSize: 12, color: '#6B7280', marginLeft: 2, flex: 1 },
+  rowAccent:      { width: 4, backgroundColor: Colors.light.primary },
+  rowAvatar:      { width: 54, height: 54, borderRadius: 12 },
+  rowName:        { fontSize: 15, fontWeight: '700', color: Colors.light.text },
+  rowLocation:    { fontSize: 12, color: '#6B7280', marginLeft: 2, flex: 1 },
   rowReviewCount: { fontSize: 11, color: '#6B7280', fontWeight: '500' },
-  rowChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  rowChipsRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   onlineDot: {
     position: 'absolute', bottom: -2, left: -2,
-    width: 12, height: 12, borderRadius: 6,
+    width: 13, height: 13, borderRadius: 7,
     backgroundColor: '#10B981', borderWidth: 2, borderColor: '#FFFFFF',
   },
 
-  // Tiny chip
+  /* ── Tiny chip ── */
   tinyChip: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 8, paddingVertical: 3,
@@ -765,30 +780,21 @@ const s = StyleSheet.create({
   },
   tinyChipText: { fontSize: 10, fontWeight: '700' },
 
-  // Available inline
+  /* ── Available inline badge ── */
   availableInline: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 6, paddingVertical: 3,
-    gap: 4,
+    paddingHorizontal: 6, paddingVertical: 3, gap: 4,
   },
-  availableDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
+  availableDot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
   availableInlineText: { color: '#10B981', fontSize: 11, fontWeight: '700' },
 
-  // Empty state
+  /* ── Empty state ── */
   emptyBox: {
-    marginHorizontal: 20,
-    paddingVertical: 18,
+    paddingVertical: 20,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    borderRadius: 14,
+    borderWidth: 1, borderColor: '#F0F0F0',
+    alignItems: 'center', justifyContent: 'center', gap: 6,
   },
-  emptyText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
+  emptyText: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
 });

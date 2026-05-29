@@ -11,6 +11,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
@@ -34,6 +35,7 @@ export default function LoginScreen() {
   const params = useLocalSearchParams<{ justSignedUp?: string; email?: string }>();
   const justSignedUp = params.justSignedUp === '1';
   const { isPhone } = useResponsive();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState(params.email ?? '');
   const [password, setPassword] = useState('');
@@ -162,7 +164,7 @@ export default function LoginScreen() {
   /* ── Shared reset-password modal ── */
   const resetModal = (
     <Modal visible={showResetModal} animationType="slide" transparent={true}>
-      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.modalContent, { maxWidth: 480, width: '100%', alignSelf: 'center' }]}>
           <View style={styles.dragHandle} />
           <View style={styles.modalHeader}>
@@ -306,7 +308,7 @@ export default function LoginScreen() {
 
   /* ── Mobile: original layout (now used everywhere) ── */
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={[styles.scrollContent, { alignItems: 'center' }]} bounces={false}>
         <View style={[styles.column, { maxWidth: 480 }]}>
           {/* Header Hero Section */}
@@ -355,7 +357,7 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
+      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 24) }]}>
         <Text style={styles.bottomNavText}>Don&apos;t have an account? </Text>
         <TouchableOpacity onPress={() => router.push('/register')}>
           <Text style={styles.bottomNavLink}>Sign Up</Text>

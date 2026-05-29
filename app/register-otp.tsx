@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  View, Text, StyleSheet, SafeAreaView, TouchableOpacity, 
+  View, Text, StyleSheet, TouchableOpacity, 
   KeyboardAvoidingView, Platform, TextInput, Alert, Animated
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
@@ -125,7 +126,7 @@ export default function RegisterOTPScreen() {
   const isComplete = code.every(digit => digit !== '');
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
       <KeyboardAvoidingView 
         style={[styles.column, { maxWidth: colMaxWidth }]} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

@@ -15,6 +15,8 @@ import { supabase } from '../../lib/supabase';
 import { BookingStatus } from '../../models/types';
 import { Colors } from '../../constants/Colors';
 import { useResponsive } from '../../lib/responsive';
+import { useAuth } from '../../providers/auth-provider';
+import { VisitorPlaceholder } from '../../components/ui/VisitorPlaceholder';
 
 type TabKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
@@ -50,6 +52,7 @@ function formatTime(iso: string) {
 export default function BookingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isVisitor } = useAuth();
   const { isTablet, isDesktop } = useResponsive();
 
   // Responsive grid: 1 col phone, 2 col tablet/desktop. Booking cards have
@@ -122,6 +125,22 @@ export default function BookingsScreen() {
     return (
       <View style={[s.page, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={Colors.light.primary} />
+      </View>
+    );
+  }
+
+  // ── Visitor state ──────────────────────────────────────────────────────────
+  if (isVisitor) {
+    return (
+      <View style={[s.page, { paddingTop: insets.top }]}>
+        {/* Light blue header — exact Babysits style */}
+        <View style={bvs.header}>
+          <Text style={bvs.headerTitle}>Réservations</Text>
+        </View>
+
+        <VisitorPlaceholder
+          hint="Connectez-vous pour envoyer des demandes de réservation."
+        />
       </View>
     );
   }
@@ -369,4 +388,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 28, paddingVertical: 14, borderRadius: 24,
   },
   emptyBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+});
+
+const bvs = StyleSheet.create({
+  header: {
+    backgroundColor: '#EDF5F6',
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2ECEE',
+  },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
 });

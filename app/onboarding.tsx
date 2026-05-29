@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
+import { useAuth } from '../providers/auth-provider';
 
 const TEAL = '#007D8C';
 
@@ -44,6 +46,7 @@ const SLIDES = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { enterVisitorMode } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -73,11 +76,11 @@ export default function OnboardingScreen() {
   const currentSlide = SLIDES[currentIndex];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
       <View style={styles.column}>
         {/* Skip button */}
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)')} hitSlop={12}>
+          <TouchableOpacity onPress={() => { enterVisitorMode(); router.replace('/(tabs)'); }} hitSlop={12}>
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
         </View>
@@ -138,7 +141,7 @@ export default function OnboardingScreen() {
           </View>
 
           {/* Browse as visitor */}
-          <TouchableOpacity style={styles.visitorButton} onPress={() => router.push('/(tabs)')} accessibilityRole="button">
+          <TouchableOpacity style={styles.visitorButton} onPress={() => { enterVisitorMode(); router.replace('/(tabs)'); }} accessibilityRole="button">
             <Ionicons name="eye-outline" size={16} color={Colors.light.textSecondary} style={{ marginRight: 6 }} />
             <Text style={styles.visitorText}>Browse as Visitor</Text>
           </TouchableOpacity>

@@ -3,7 +3,7 @@ import { Redirect } from 'expo-router';
 import { useAuth } from '../providers/auth-provider';
 
 export default function IndexRouter() {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, isVisitor } = useAuth();
 
   if (loading) {
     return (
@@ -12,6 +12,9 @@ export default function IndexRouter() {
       </View>
     );
   }
+
+  // Unauthenticated visitors can browse the parent-facing tabs.
+  if (!session && isVisitor) return <Redirect href="/(tabs)" />;
 
   if (!session) return <Redirect href="/splash" />;
   if (profile?.role === 'BABY_SITTER') return <Redirect href="/sitter-home" />;

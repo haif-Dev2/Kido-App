@@ -9,10 +9,13 @@ import { Colors } from '../../constants/Colors';
 import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
 import { useFavoritesStore } from '../../store/favorites-store';
 import { useResponsive } from '../../lib/responsive';
+import { useAuth } from '../../providers/auth-provider';
+import { VisitorPlaceholder } from '../../components/ui/VisitorPlaceholder';
 
 export default function FavoritesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isVisitor } = useAuth();
   const { isTablet, isDesktop } = useResponsive();
   const favoriteIds    = useFavoritesStore(s => s.ids);
   const toggleFavorite = useFavoritesStore(s => s.toggle);
@@ -22,6 +25,22 @@ export default function FavoritesScreen() {
 
   const sitters = MOCK_SITTERS.filter(s => favoriteIds.has(s.id));
   const cols = isDesktop ? 3 : isTablet ? 2 : 1;
+
+  // ── Visitor state ────────────────────────────────────────────────────────────
+  if (isVisitor) {
+    return (
+      <View style={[s.page, { paddingTop: insets.top }]}>
+        {/* Light blue header — exact Babysits style */}
+        <View style={fvs.header}>
+          <Text style={fvs.headerTitle}>Favoris</Text>
+        </View>
+
+        <VisitorPlaceholder
+          hint="Connectez-vous pour ajouter des favoris."
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
@@ -237,4 +256,15 @@ const s = StyleSheet.create({
     paddingHorizontal: 22, paddingVertical: 13, borderRadius: 999,
   },
   emptyBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+});
+
+const fvs = StyleSheet.create({
+  header: {
+    backgroundColor: '#EDF5F6',
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2ECEE',
+  },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
 });

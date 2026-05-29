@@ -36,13 +36,68 @@ interface Item {
   onPress: () => void;
 }
 
+/* ─── Visitor Account screen (Babysits-style) ─── */
+function VisitorAccountScreen({ insets }: { insets: { top: number; bottom: number } }) {
+  const router = useRouter();
+
+  const supportItems = [
+    { icon: 'help-circle-outline' as const,       label: 'Aide' },
+    { icon: 'document-text-outline' as const,     label: 'Conseils et articles' },
+    { icon: 'key-outline' as const,               label: 'Tarifs' },
+    { icon: 'people-outline' as const,            label: 'Comment nous travaillons' },
+    { icon: 'shield-checkmark-outline' as const,  label: 'Confiance & Sécurité' },
+    { icon: 'reader-outline' as const,            label: "Conditions générales\nd'utilisation" },
+    { icon: 'lock-closed-outline' as const,       label: 'Politique de\nconfidentialité' },
+  ];
+
+  return (
+    <View style={[vs.page, { paddingTop: insets.top }]}>
+
+      {/* ── Light blue header ── */}
+      <View style={vs.header}>
+        <Text style={vs.headerTitle}>Compte</Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── "Rejoignez Kido" + CTA ── */}
+        <View style={vs.joinBlock}>
+          <Text style={vs.joinTitle}>Rejoignez Kido</Text>
+          <TouchableOpacity style={vs.loginBtn} onPress={() => router.push('/login')} activeOpacity={0.87}>
+            <Text style={vs.loginBtnText}>Log in or sign up</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Support header ── */}
+        <Text style={vs.sectionLabel}>Support</Text>
+
+        {/* ── Each item is its own separate rounded card ── */}
+        <View style={vs.itemList}>
+          {supportItems.map((item) => (
+            <TouchableOpacity key={item.icon} style={vs.itemCard} activeOpacity={0.7}>
+              <View style={vs.itemIcon}>
+                <Ionicons name={item.icon} size={22} color="#9CA3AF" />
+              </View>
+              <Text style={vs.itemLabel}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#C1C7D0" />
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, isVisitor } = useAuth();
   const { isPhone } = useResponsive();
   const favCount = useFavoritesStore(s => s.ids.size);
 
+  // All hooks must be above any conditional return
   const [bookingsCount, setBookingsCount] = useState(0);
   const [avgRating, setAvgRating] = useState(0);
 
@@ -67,6 +122,11 @@ export default function ProfileScreen() {
         });
     });
   }, []);
+
+  // ── Visitor early return (after all hooks) ───────────────────────────────────
+  if (isVisitor && !profile) {
+    return <VisitorAccountScreen insets={insets} />;
+  }
 
   const displayName = profile
     ? `${profile.first_name} ${profile.last_name}`.trim() || profile.email.split('@')[0]
@@ -320,4 +380,61 @@ const s = StyleSheet.create({
   logoutText: { color: '#EF4444', fontSize: 15, fontWeight: '700' },
 
   version: { textAlign: 'center', color: '#C1C7D0', fontSize: 11, marginTop: 14 },
+});
+
+/* ─── Visitor account screen styles — exact Babysits match ─── */
+const vs = StyleSheet.create({
+  page: { flex: 1, backgroundColor: '#FFFFFF' },
+
+  /* Light blue header — same shade as Babysits */
+  header: {
+    backgroundColor: '#EBF4F5',
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
+
+  /* "Rejoignez Kido" section */
+  joinBlock: {
+    paddingHorizontal: 22,
+    paddingTop: 30,
+    paddingBottom: 28,
+    alignItems: 'center',
+  },
+  joinTitle: {
+    fontSize: 24, fontWeight: '800', color: '#0F172A',
+    marginBottom: 22, textAlign: 'center',
+  },
+  loginBtn: {
+    backgroundColor: '#0C9193',
+    borderRadius: 32,
+    paddingVertical: 16,
+    alignItems: 'center',
+    width: '100%',
+  },
+  loginBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
+  /* "Support" section label */
+  sectionLabel: {
+    fontSize: 18, fontWeight: '800', color: '#0F172A',
+    marginLeft: 18, marginBottom: 10,
+  },
+
+  /* Each support item is a separate rounded card */
+  itemList: { paddingHorizontal: 14, gap: 10 },
+  itemCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: '#F5F6F8',
+    borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 14,
+  },
+  itemIcon: {
+    width: 42, height: 42, borderRadius: 12,
+    backgroundColor: '#E8EAED',
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  itemLabel: {
+    flex: 1, fontSize: 15, color: '#1F2937', fontWeight: '500', lineHeight: 21,
+  },
 });

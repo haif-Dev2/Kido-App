@@ -13,6 +13,8 @@ import { useFavoritesStore } from '../../store/favorites-store';
 import { Map } from '../../components/ui/Map';
 import { useResponsive } from '../../lib/responsive';
 import { getCurrentLocation } from '../../lib/location-service';
+import { useAuth } from '../../providers/auth-provider';
+import { VisitorBanner } from '../../components/ui/VisitorBanner';
 
 type SortKey = 'relevance' | 'distance' | 'rating' | 'price';
 type ViewMode = 'list' | 'map';
@@ -20,6 +22,7 @@ type ViewMode = 'list' | 'map';
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isVisitor } = useAuth();
   const { isTablet, isDesktop } = useResponsive();
 
   const [query, setQuery] = useState('');
@@ -120,6 +123,7 @@ export default function SearchScreen() {
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
+      {isVisitor && <VisitorBanner />}
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}

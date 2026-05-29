@@ -18,6 +18,8 @@ import { fetchSitterById } from '../../lib/api/sitters';
 import { haptics } from '../../lib/haptics';
 import { Map } from '../../components/ui/Map';
 import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
+import { useAuth } from '../../providers/auth-provider';
+import { LoginPromptModal } from '../../components/ui/LoginPromptModal';
 
 /* ─── Design tokens ─── */
 const TEAL = '#0F6E56';
@@ -45,11 +47,13 @@ export default function SitterDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isPhone } = useResponsive();
+  const { isVisitor } = useAuth();
 
   const [sitter, setSitter] = useState<MockSitter | null>(null);
   const [loading, setLoading] = useState(true);
   const [favorited, setFavorited] = useState(false);
   const [activeTab, setActiveTab] = useState<'about' | 'schedule' | 'reviews'>('about');
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   useEffect(() => {
     fetchSitterById(id).then(s => {
@@ -341,6 +345,10 @@ export default function SitterDetailScreen() {
           <Pressable
             onPress={() => {
               haptics.medium();
+              if (isVisitor) {
+                setShowLoginPrompt(true);
+                return;
+              }
               router.push({ pathname: '/booking/new/[sitterId]', params: { sitterId: sitter.uuid ?? String(sitter.id) } });
             }}
             style={s.bookBtn}
@@ -352,6 +360,13 @@ export default function SitterDetailScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* Visitor → login prompt */}
+      <LoginPromptModal
+        visible={showLoginPrompt}
+        onClose={() => setShowLoginPrompt(false)}
+        action="book a babysitter"
+      />
     </View>
   );
 }

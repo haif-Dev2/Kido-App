@@ -17,6 +17,12 @@ interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  /** True when the user chose "Browse as Visitor" (no account required). */
+  isVisitor: boolean;
+  /** Call this to enter visitor/guest browsing mode. */
+  enterVisitorMode: () => void;
+  /** Exit visitor mode and go back to onboarding. */
+  exitVisitorMode: () => void;
   /** Re-fetch the profile row (e.g. after editing it). */
   refreshProfile: () => Promise<void>;
 }
@@ -25,6 +31,9 @@ const AuthContext = createContext<AuthContextValue>({
   session: null,
   profile: null,
   loading: true,
+  isVisitor: false,
+  enterVisitorMode: () => {},
+  exitVisitorMode: () => {},
   refreshProfile: async () => {},
 });
 
@@ -32,6 +41,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isVisitor, setIsVisitor] = useState(false);
+
+  const enterVisitorMode = useCallback(() => setIsVisitor(true), []);
+  const exitVisitorMode = useCallback(() => setIsVisitor(false), []);
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase
@@ -96,8 +109,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchProfile]);
 
+  // When a real session appears, exit visitor mode automatically.
+  useEffect(() => {
+    if (session) setIsVisitor(false);
+  }, [session]);
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading, refreshProfile }}>
+    <AuthContext.Provider value={{ session, profile, loading, isVisitor, enterVisitorMode, exitVisitorMode, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

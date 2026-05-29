@@ -13,6 +13,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import { useRegistrationStore } from '../store/registration-store';
 import { useResponsive } from '../lib/responsive';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -36,6 +37,7 @@ const COUNTRIES = [
 export default function RegisterStep1Screen() {
   const router = useRouter();
   const { isPhone } = useResponsive();
+  const insets = useSafeAreaInsets();
   const colMaxWidth = isPhone ? undefined : 480;
   const [step, setStep] = useState<Step>(1);
   const [firstName, setFirstName] = useState('');
@@ -243,7 +245,7 @@ export default function RegisterStep1Screen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { alignItems: 'center' }]}
         bounces={false}
@@ -493,7 +495,7 @@ export default function RegisterStep1Screen() {
           </Animated.View>
 
           {/* Bottom Sign In */}
-          <View style={styles.bottomNav}>
+          <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 24) }]}>
             <Text style={styles.bottomNavText}>Already have an account? </Text>
             <TouchableOpacity onPress={() => router.push('/login')}>
               <Text style={styles.bottomNavLink}>Sign In</Text>
@@ -506,7 +508,7 @@ export default function RegisterStep1Screen() {
       {/* Country Picker Modal */}
       <Modal visible={showCountryPicker} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: colMaxWidth, width: '100%', alignSelf: 'center' }]}>
+          <View style={[styles.modalContent, { maxWidth: colMaxWidth, width: '100%', alignSelf: 'center', paddingBottom: Math.max(insets.bottom, 24) }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Country</Text>
               <TouchableOpacity onPress={() => setShowCountryPicker(false)}>
@@ -669,13 +671,13 @@ const styles = StyleSheet.create({
   securityDot: { color: '#D1D5DB', marginHorizontal: 10 },
 
   // Bottom nav
-  bottomNav: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+  bottomNav: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 24 },
   bottomNavText: { color: Colors.light.textSecondary, fontSize: 14 },
   bottomNavLink: { color: Colors.light.primary, fontSize: 14, fontWeight: '700' },
 
   // Modal styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%', paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.light.text },
   countryItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
