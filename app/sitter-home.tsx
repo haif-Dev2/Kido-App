@@ -1,20 +1,25 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, Pressable,
-  RefreshControl, ActivityIndicator, Alert, TouchableOpacity,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator, Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView, StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { supabase } from '../lib/supabase';
-import { useAuth } from '../providers/auth-provider';
 import { haptics } from '../lib/haptics';
-import { BookingStatus } from '../models/types';
 import { MAX_CONTENT_WIDTH, useResponsive } from '../lib/responsive';
+import { supabase } from '../lib/supabase';
+import { BookingStatus } from '../models/types';
+import { useAuth } from '../providers/auth-provider';
 
 const TEAL = '#007D8C';
 const TEAL_DARK = '#005F6B';
@@ -88,6 +93,25 @@ export default function SitterHomeScreen() {
   const router = useRouter();
   const { profile } = useAuth();
   const { isPhone } = useResponsive();
+
+// Logout handler
+  const handleLogout = () => {
+    Alert.alert(
+      'Se déconnecter',
+      'Voulez-vous vraiment vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Déconnecter',
+          style: 'destructive',
+          onPress: async () => {
+            await supabase.auth.signOut();
+            router.replace('/login');
+          },
+        },
+      ],
+    );
+  };  
 
   // Use a single column on phones; on tablet/desktop split into a 2-column
   // layout where the primary feed (upcoming + requests) is on the left and
@@ -299,6 +323,23 @@ export default function SitterHomeScreen() {
       >
         <View style={s.greetingCircle1} />
         <View style={s.greetingCircle2} />
+
+{/* Logout Button - Top Right */}
+        <TouchableOpacity
+          onPress={handleLogout}
+          style={{
+            position: 'absolute',
+            top: 16,
+            left: 16,
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            borderRadius: 20,
+            padding: 8,
+            zIndex: 10,
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="log-out-outline" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
 
         <View style={s.greetingRow}>
           <Image source={{ uri: sitterPhoto }} style={s.greetingAvatar} contentFit="cover" />

@@ -1,34 +1,53 @@
-import { useEffect, useState } from 'react';
-import { Tabs } from 'expo-router';
-import { View, Text, Platform, StyleSheet, useWindowDimensions } from 'react-native';
+// app/(tabs)/_layout.tsx — full replacement (v2)
+// Change from v1: bottomPad multiplied by 1.2 for 20% extra breathing room.
+
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
-import { MOCK_BOOKINGS } from '../../lib/mock/bookings';
-import { supabase } from '../../lib/supabase';
 import { BREAKPOINTS } from '../../lib/responsive';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../providers/auth-provider';
 
 export default function TabLayout() {
-  const [pendingCount, setPendingCount] = useState(
-    MOCK_BOOKINGS.filter(b => b.status === 'PENDING').length,
-  );
+  const { session, isVisitor } = useAuth();
+  const insets = useSafeAreaInsets();
+  const [pendingCount, setPendingCount] = useState(0);
   const { width } = useWindowDimensions();
-
-  // Make the tab bar slightly taller on tablets / desktop so each item meets
-  // the 48px tap-target spec (Material) and the labels feel proportional to
-  // the larger surface area.
   const isCompact = width < BREAKPOINTS.lg;
 
+  // Raw inset + 20% extra space so the bar never feels cramped.
+  const rawBottom = Platform.OS === 'ios'
+    ? Math.max(insets.bottom, 28)
+    : Math.max(insets.bottom, 10);
+  
+  const bottomPad = Math.round(rawBottom * 1.2); // ← +20% breathing room
+  const barHeight = (isCompact ? 56 : 64) + bottomPad;
+
   useEffect(() => {
+    if (isVisitor || !session) { 
+      setPendingCount(0); 
+      return; 
+    }
+    
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+      if (!user) { 
+        setPendingCount(0); 
+        return; 
+      }
+      
       supabase
         .from('bookings')
         .select('id', { count: 'exact', head: true })
         .eq('parent_id', user.id)
         .eq('status', 'PENDING')
-        .then(({ count }) => { if (count !== null) setPendingCount(count); });
+        .then(({ count }) => { 
+          setPendingCount(count ?? 0); 
+        });
     });
-  }, []);
+  }, [session, isVisitor]);
 
   return (
     <Tabs
@@ -38,69 +57,71 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarShowLabel: true,
         tabBarLabelStyle: [s.label, isCompact ? null : s.labelLg],
-        tabBarStyle: [s.bar, isCompact ? null : s.barLg],
-        // Use vertical padding to grow each item to ≥ 48px on every viewport.
+        tabBarStyle: [s.bar, isCompact ? null : s.barLg, { paddingBottom: bottomPad, height: barHeight }],
         tabBarItemStyle: { paddingTop: isCompact ? 6 : 8, paddingBottom: 0 },
-        // Extra hit area on web — Pressable inside Tabs adds a 44px min via global.css.
         tabBarHideOnKeyboard: true,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
+      <Tabs.Screen 
+        name="index" 
+        options={{ 
+          title: 'Home', 
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={isCompact ? 22 : 24} color={color} />
-          ),
-          tabBarAccessibilityLabel: 'Home tab',
-        }}
+          ), 
+          tabBarAccessibilityLabel: 'Home tab' 
+        }} 
       />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: 'Search',
+      
+      <Tabs.Screen 
+        name="search" 
+        options={{ 
+          title: 'Search', 
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'search' : 'search-outline'} size={isCompact ? 22 : 24} color={color} />
-          ),
-          tabBarAccessibilityLabel: 'Search tab',
-        }}
+          ), 
+          tabBarAccessibilityLabel: 'Search tab' 
+        }} 
       />
-      <Tabs.Screen
-        name="bookings"
-        options={{
+      
+      <Tabs.Screen 
+        name="bookings" 
+        options={{ 
           title: 'Bookings',
           tabBarIcon: ({ color, focused }) => (
             <View>
               <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={isCompact ? 22 : 24} color={color} />
-              {pendingCount > 0 && (
+              {!isVisitor && session && pendingCount > 0 && (
                 <View style={s.badge}>
                   <Text style={s.badgeText}>{pendingCount}</Text>
                 </View>
               )}
             </View>
           ),
-          tabBarAccessibilityLabel: `Bookings tab, ${pendingCount} pending`,
-        }}
+          tabBarAccessibilityLabel: `Bookings tab${pendingCount > 0 ? `, ${pendingCount} pending` : ''}`,
+        }} 
       />
-      <Tabs.Screen
-        name="favorites"
-        options={{
-          title: 'Favorites',
+      
+      <Tabs.Screen 
+        name="favorites" 
+        options={{ 
+          title: 'Favorites', 
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'heart' : 'heart-outline'} size={isCompact ? 22 : 24} color={color} />
-          ),
-          tabBarAccessibilityLabel: 'Favorites tab',
-        }}
+          ), 
+          tabBarAccessibilityLabel: 'Favorites tab' 
+        }} 
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
+      
+      <Tabs.Screen 
+        name="profile" 
+        options={{ 
+          title: 'Profile', 
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={isCompact ? 22 : 24} color={color} />
-          ),
-          tabBarAccessibilityLabel: 'Profile tab',
-        }}
+          ), 
+          tabBarAccessibilityLabel: 'Profile tab' 
+        }} 
       />
     </Tabs>
   );
@@ -108,48 +129,36 @@ export default function TabLayout() {
 
 const s = StyleSheet.create({
   bar: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
+    backgroundColor: '#FFFFFF', 
+    borderTopWidth: 1, 
     borderTopColor: '#F0F0F0',
-    // Add iOS bottom safe-area padding (home indicator). On the web, the
-    // env(safe-area-inset-bottom) already comes from the body padding, so we
-    // keep the bar height tight and let the body handle it.
-    height: Platform.OS === 'ios' ? 88 : 68,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 10,
-    paddingTop: 6,
+    paddingTop: 6, 
     elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.04,
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: -2 }, 
+    shadowOpacity: 0.04, 
     shadowRadius: 8,
   },
-  // Slightly taller bar on tablets/desktop. Bigger labels/icons feel right
-  // on big surfaces, and the extra height keeps each tab ≥ 48px tall.
-  barLg: {
-    height: Platform.OS === 'ios' ? 92 : 76,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    paddingTop: 10,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  labelLg: {
-    fontSize: 13,
-    marginTop: 4,
-  },
+  barLg: { paddingTop: 10 },
+  label: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  labelLg: { fontSize: 13, marginTop: 4 },
   badge: {
-    position: 'absolute',
-    top: -6, right: -10,
-    minWidth: 18, height: 18, borderRadius: 9,
+    position: 'absolute', 
+    top: -6, 
+    right: -10,
+    minWidth: 18, 
+    height: 18, 
+    borderRadius: 9,
     backgroundColor: '#EC4899',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-    borderWidth: 2, borderColor: '#FFFFFF',
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingHorizontal: 4,
+    borderWidth: 2, 
+    borderColor: '#FFFFFF',
   },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
+  badgeText: { 
+    color: '#FFFFFF', 
+    fontSize: 10, 
+    fontWeight: '700' 
   },
 });

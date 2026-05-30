@@ -1,19 +1,28 @@
-import React, { useState, useRef } from 'react';
-import { 
-  View, Text, StyleSheet, ScrollView, Image, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Animated, Modal, FlatList
-} from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/Colors';
-import { CustomInput } from '../components/ui/CustomInput';
-import { CustomButton } from '../components/ui/CustomButton';
-import { supabase } from '../lib/supabase';
-import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
-import { useRegistrationStore } from '../store/registration-store';
-import { useResponsive } from '../lib/responsive';
+import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useRef, useState } from 'react';
+import {
+  Animated,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CustomButton } from '../components/ui/CustomButton';
+import { CustomInput } from '../components/ui/CustomInput';
+import { Colors } from '../constants/Colors';
+import { useResponsive } from '../lib/responsive';
+import { supabase } from '../lib/supabase';
+import { useRegistrationStore } from '../store/registration-store';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -171,77 +180,84 @@ export default function RegisterStep1Screen() {
   };
 
   const handleSignUp = async () => {
-    // Give the user explicit feedback instead of a silent no-op.
-    if (!password) { setErrorMessage('Please enter a password.'); return; }
-    if (password.length < 6) { setErrorMessage('Password must be at least 6 characters.'); return; }
-    if (password !== confirmPassword) { setErrorMessage('Passwords don\u2019t match.'); return; }
+    const trimmedPassword        = password.trim();
+    const trimmedConfirmPassword = confirmPassword.trim();
+ 
+    if (!trimmedPassword) { setErrorMessage('Please enter a password.'); return; }
+    if (trimmedPassword.length < 6) { setErrorMessage('Password must be at least 6 characters.'); return; }
+    if (trimmedPassword !== trimmedConfirmPassword) { setErrorMessage("Passwords don't match."); return; }
     if (!agreeTerms) { setErrorMessage('Please accept the Terms of Service.'); return; }
-
+ 
     setIsSubmitting(true);
     setErrorMessage('');
-
+ 
     const normalizedEmail = email.trim().toLowerCase();
-    const fullPhone = `${selectedCountry.dialCode}${phone}`;
-    // Role was captured on the previous screen (app/register.tsx); default to PARENT for safety.
-    const role = useRegistrationStore.getState().role ?? 'PARENT';
-    console.log('Starting sign up with:', { email: normalizedEmail, fullPhone, role });
-
+    const fullPhone       = `${selectedCountry.dialCode}${phone.trim()}`;
+    const role            = useRegistrationStore.getState().role ?? 'PARENT';
+ 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password,
+      // ── 1. Sign up ────────────────────────────────────────────────────────────
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email:    normalizedEmail,
+        password: trimmedPassword,
         options: {
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            phone: fullPhone,
-            role,
-          },
+          data: { first_name: firstName.trim(), last_name: lastName.trim(), phone: fullPhone, role },
         },
       });
-
-      console.log('Supabase response:', { data, error });
-
-      if (error) {
-        const msg = error.message.toLowerCase();
+ 
+      if (signUpError) {
+        const msg = signUpError.message.toLowerCase();
         if (msg.includes('already registered') || msg.includes('user already')) {
           setErrorMessage('An account with this email already exists. Please sign in instead.');
-        } else if (msg.includes('rate limit') || msg.includes('email rate')) {
-          // Rate limit hit — try signing in directly (account may already exist)
-          console.log('[signup] rate limit hit, trying direct sign-in...');
-          const { data: signInData } = await supabase.auth.signInWithPassword({
-            email: normalizedEmail,
-            password,
-          });
-          if (signInData?.session) {
-            router.replace('/(tabs)');
-          } else {
-            // Go to the app anyway for development
-            console.log('[signup] rate limit — navigating to app anyway');
-            router.replace('/(tabs)');
-          }
         } else {
-          setErrorMessage(error.message);
+          setErrorMessage(signUpError.message);
         }
-      } else if (data.session) {
-        // Immediate session — user is signed in
-        console.log('[signup] got session, navigating to app');
-        router.replace('/(tabs)');
-      } else if (data.user) {
-        // Account created but no session (email confirmation is ON)
-        // Go directly to the app — don't wait for email confirmation
-        console.log('[signup] account created, skipping email confirmation');
-        router.replace('/(tabs)');
+        return;
+      }
+ 
+      // ── 2. Get a session ─────────────────────────────────────────────────────
+      //   signUp returns a session immediately when email confirmation is OFF.
+      //   If it is still ON in Supabase, we sign in right away so the user
+      //   never has to do it manually.
+      let session = signUpData.session;
+ 
+      if (!session && signUpData.user) {
+        // Email confirmation is on — sign in immediately to create a session.
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email:    normalizedEmail,
+          password: trimmedPassword,
+        });
+        if (signInError) {
+          // Very unlikely here (we just created the account), but guard anyway.
+          setErrorMessage('Account created! Please sign in manually.');
+          router.replace('/login');
+          return;
+        }
+        session = signInData.session;
+      }
+ 
+      if (!session) {
+        setErrorMessage('Account created but could not sign in automatically. Please sign in manually.');
+        router.replace('/login');
+        return;
+      }
+ 
+      // ── 3. Route to the correct home screen based on role ────────────────────
+      const userRole =
+        (session.user?.user_metadata?.role as string | undefined)?.toUpperCase() ?? role;
+ 
+      if (userRole === 'BABY_SITTER') {
+        router.replace('/sitter-home');
       } else {
-        // Fallback — just go to the app
         router.replace('/(tabs)');
       }
+ 
     } catch (err: any) {
-      console.error('Sign up exception:', err);
-      // Even on error, navigate to the app for development
-      router.replace('/(tabs)');
+      console.error('[signup] unexpected error:', err);
+      setErrorMessage(err?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-    finally { setIsSubmitting(false); }
   };
 
   return (

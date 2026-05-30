@@ -3,6 +3,14 @@ const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
+// ─── Permanent OOM fix for Windows ───────────────────────────────────────────
+// Metro spawns one worker per CPU core by default. On Windows with a large
+// project (~3800 modules) this causes all workers to allocate large heaps
+// simultaneously and the process group runs out of virtual memory.
+// Capping at 2 workers keeps peak memory well under 4 GB on any machine.
+config.maxWorkers = 2;
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Skip dependency validation that requires network (fixes "fetch failed" crash)
 config.server = {
   ...config.server,
@@ -13,13 +21,6 @@ config.server = {
 // which is a SyntaxError when Metro serves the bundle as a classic <script>.
 // On native (iOS/Android) we leave the default conditions untouched, so
 // React Native gets its proper exports.
-//
-// NOTE: Metro forcibly prepends "import" to the condition list whenever the
-// source file declared the import via `import` syntax (see
-// `metro-resolver/src/utils/matchSubpathFromExportsLike.js`, which branches on
-// `context.isESMImport`). So setting `unstable_conditionNames` alone is not
-// enough — we also have to flip `isESMImport` to `false` on web so Metro uses
-// the "require" condition first.
 const upstreamResolveRequest = config.resolver.resolveRequest;
 config.resolver = {
   ...config.resolver,

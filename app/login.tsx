@@ -1,26 +1,27 @@
+import { Ionicons } from '@expo/vector-icons';
+import { makeRedirectUri } from 'expo-auth-session';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
   Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/Colors';
-import { CustomInput } from '../components/ui/CustomInput';
 import { CustomButton } from '../components/ui/CustomButton';
-import { supabase } from '../lib/supabase';
-import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-auth-session';
+import { CustomInput } from '../components/ui/CustomInput';
+import { Colors } from '../constants/Colors';
 import { useResponsive } from '../lib/responsive';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../providers/auth-provider';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -32,6 +33,7 @@ const TRUST_ITEMS = [
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { enterVisitorMode } = useAuth();   // Added for visitor mode
   const params = useLocalSearchParams<{ justSignedUp?: string; email?: string }>();
   const justSignedUp = params.justSignedUp === '1';
   const { isPhone } = useResponsive();
@@ -79,20 +81,7 @@ export default function LoginScreen() {
         setSignInError(friendly.message);
         setNeedsConfirmation(friendly.emailNotConfirmed);
       } else {
-        const user = data.session?.user;
-        const metaPhone = (user?.user_metadata?.phone as string | undefined) ?? user?.phone ?? null;
-        const phoneConfirmed = !!user?.phone_confirmed_at;
-        if (metaPhone && !phoneConfirmed) {
-          const { error: otpError } = await supabase.auth.updateUser({ phone: metaPhone });
-          if (otpError) {
-            console.warn('[login] could not send phone OTP:', otpError.message);
-            router.replace('/(tabs)');
-          } else {
-            router.replace({ pathname: '/register-otp', params: { phone: metaPhone } });
-          }
-        } else {
-          router.replace('/(tabs)');
-        }
+        router.replace('/');
       }
     } catch (err: any) {
       setSignInError(err?.message || 'An unexpected error occurred. Check your connection.');
@@ -319,9 +308,6 @@ export default function LoginScreen() {
               resizeMode="cover"
             />
             <View style={styles.heroOverlay} />
-            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={22} color={Colors.light.text} />
-            </TouchableOpacity>
           </View>
 
           <View style={styles.formContainer}>
@@ -358,9 +344,20 @@ export default function LoginScreen() {
       </ScrollView>
 
       <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-        <Text style={styles.bottomNavText}>Don&apos;t have an account? </Text>
-        <TouchableOpacity onPress={() => router.push('/register')}>
-          <Text style={styles.bottomNavLink}>Sign Up</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+          <Text style={styles.bottomNavText}>Don&apos;t have an account? </Text>
+          <TouchableOpacity onPress={() => router.push('/register')}>
+            <Text style={styles.bottomNavLink}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          onPress={() => { enterVisitorMode(); router.replace('/(tabs)'); }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+        >
+          <Ionicons name="eye-outline" size={14} color="#9CA3AF" />
+          <Text style={{ color: '#9CA3AF', fontSize: 13, fontWeight: '500' }}>
+            Continuer en tant que visiteur
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -376,15 +373,7 @@ const styles = StyleSheet.create({
   heroSection: { width: '100%', height: 300, position: 'relative' },
   heroImage: { width: '100%', height: '100%' },
   heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.2)' },
-  backBtn: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 52 : 40,
-    left: 20,
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
-  },
+
   formContainer: {
     flex: 1, backgroundColor: Colors.light.white,
     borderTopLeftRadius: 32, borderTopRightRadius: 32,

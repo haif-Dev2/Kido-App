@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
+import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../providers/auth-provider';
 import { useFavoritesStore } from '../../store/favorites-store';
-import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
 
 type Tone = 'primary' | 'accent' | 'warning' | 'purple' | 'neutral';
 
@@ -36,60 +36,6 @@ interface Item {
   onPress: () => void;
 }
 
-/* ─── Visitor Account screen (Babysits-style) ─── */
-function VisitorAccountScreen({ insets }: { insets: { top: number; bottom: number } }) {
-  const router = useRouter();
-
-  const supportItems = [
-    { icon: 'help-circle-outline' as const,       label: 'Aide' },
-    { icon: 'document-text-outline' as const,     label: 'Conseils et articles' },
-    { icon: 'key-outline' as const,               label: 'Tarifs' },
-    { icon: 'people-outline' as const,            label: 'Comment nous travaillons' },
-    { icon: 'shield-checkmark-outline' as const,  label: 'Confiance & Sécurité' },
-    { icon: 'reader-outline' as const,            label: "Conditions générales\nd'utilisation" },
-    { icon: 'lock-closed-outline' as const,       label: 'Politique de\nconfidentialité' },
-  ];
-
-  return (
-    <View style={[vs.page, { paddingTop: insets.top }]}>
-
-      {/* ── Light blue header ── */}
-      <View style={vs.header}>
-        <Text style={vs.headerTitle}>Compte</Text>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── "Rejoignez Kido" + CTA ── */}
-        <View style={vs.joinBlock}>
-          <Text style={vs.joinTitle}>Rejoignez Kido</Text>
-          <TouchableOpacity style={vs.loginBtn} onPress={() => router.push('/login')} activeOpacity={0.87}>
-            <Text style={vs.loginBtnText}>Log in or sign up</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Support header ── */}
-        <Text style={vs.sectionLabel}>Support</Text>
-
-        {/* ── Each item is its own separate rounded card ── */}
-        <View style={vs.itemList}>
-          {supportItems.map((item) => (
-            <TouchableOpacity key={item.icon} style={vs.itemCard} activeOpacity={0.7}>
-              <View style={vs.itemIcon}>
-                <Ionicons name={item.icon} size={22} color="#9CA3AF" />
-              </View>
-              <Text style={vs.itemLabel}>{item.label}</Text>
-              <Ionicons name="chevron-forward" size={18} color="#C1C7D0" />
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
-
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -97,7 +43,6 @@ export default function ProfileScreen() {
   const { isPhone } = useResponsive();
   const favCount = useFavoritesStore(s => s.ids.size);
 
-  // All hooks must be above any conditional return
   const [bookingsCount, setBookingsCount] = useState(0);
   const [avgRating, setAvgRating] = useState(0);
 
@@ -123,10 +68,91 @@ export default function ProfileScreen() {
     });
   }, []);
 
-  // ── Visitor early return (after all hooks) ───────────────────────────────────
-  if (isVisitor && !profile) {
-    return <VisitorAccountScreen insets={insets} />;
+  // ── Visitor Profile ──────────────────────────────────────────────
+  if (isVisitor) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F5F6F8', paddingTop: insets.top }}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        >
+          {/* Guest avatar + CTA */}
+          <View style={{
+            backgroundColor: Colors.light.primary, 
+            paddingTop: 32, 
+            paddingBottom: 40,
+            alignItems: 'center', 
+            paddingHorizontal: 24,
+          }}>
+            <View style={{
+              width: 72, height: 72, borderRadius: 36,
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+            }}>
+              <Ionicons name="person-outline" size={36} color="#FFFFFF" />
+            </View>
+            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
+              Visiteur
+            </Text>
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
+              Créez un compte pour accéder à toutes les fonctionnalités
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push('/register')}
+              style={{
+                backgroundColor: '#FFFFFF', borderRadius: 24,
+                paddingHorizontal: 28, paddingVertical: 12, marginBottom: 10, 
+                width: '100%', alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: Colors.light.primary, fontWeight: '700', fontSize: 15 }}>
+                S'inscrire gratuitement
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/login')}
+              style={{
+                borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', borderRadius: 24,
+                paddingHorizontal: 28, paddingVertical: 12, width: '100%', alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 15 }}>Se connecter</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Info sections */}
+          {[
+            { icon: 'information-circle-outline', label: 'À propos de Kido', onPress: () => {} },
+            { icon: 'cash-outline', label: 'Tarifs', onPress: () => {} },
+            { icon: 'help-circle-outline', label: 'Comment ça marche', onPress: () => {} },
+            { icon: 'document-text-outline', label: 'Conditions d\'utilisation', onPress: () => {} },
+            { icon: 'shield-checkmark-outline', label: 'Politique de confidentialité', onPress: () => {} },
+          ].map(item => (
+            <TouchableOpacity
+              key={item.label}
+              onPress={item.onPress}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+                backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 10,
+                borderRadius: 14, padding: 16,
+                borderWidth: 1, borderColor: '#F0F0F0',
+              }}
+            >
+              <View style={{
+                width: 36, height: 36, borderRadius: 10,
+                backgroundColor: '#E6F4F5', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Ionicons name={item.icon as any} size={18} color={Colors.light.primary} />
+              </View>
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#111827' }}>{item.label}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
   }
+  // ── End visitor profile ──────────────────────────────────────────
 
   const displayName = profile
     ? `${profile.first_name} ${profile.last_name}`.trim() || profile.email.split('@')[0]
@@ -175,7 +201,7 @@ export default function ProfileScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Log out', style: 'destructive',
-          onPress: async () => { await supabase.auth.signOut(); router.replace('/onboarding'); },
+          onPress: async () => { await supabase.auth.signOut(); router.replace('/login'); },
         },
       ],
     );
@@ -294,7 +320,6 @@ function Row({ item, last }: { item: Item; last: boolean }) {
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F5F6F8' },
 
-  // Hero
   heroWrap: {
     marginHorizontal: 16, marginTop: 12,
     borderRadius: 22, backgroundColor: '#FFFFFF',
@@ -380,61 +405,4 @@ const s = StyleSheet.create({
   logoutText: { color: '#EF4444', fontSize: 15, fontWeight: '700' },
 
   version: { textAlign: 'center', color: '#C1C7D0', fontSize: 11, marginTop: 14 },
-});
-
-/* ─── Visitor account screen styles — exact Babysits match ─── */
-const vs = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#FFFFFF' },
-
-  /* Light blue header — same shade as Babysits */
-  header: {
-    backgroundColor: '#EBF4F5',
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
-
-  /* "Rejoignez Kido" section */
-  joinBlock: {
-    paddingHorizontal: 22,
-    paddingTop: 30,
-    paddingBottom: 28,
-    alignItems: 'center',
-  },
-  joinTitle: {
-    fontSize: 24, fontWeight: '800', color: '#0F172A',
-    marginBottom: 22, textAlign: 'center',
-  },
-  loginBtn: {
-    backgroundColor: '#0C9193',
-    borderRadius: 32,
-    paddingVertical: 16,
-    alignItems: 'center',
-    width: '100%',
-  },
-  loginBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-
-  /* "Support" section label */
-  sectionLabel: {
-    fontSize: 18, fontWeight: '800', color: '#0F172A',
-    marginLeft: 18, marginBottom: 10,
-  },
-
-  /* Each support item is a separate rounded card */
-  itemList: { paddingHorizontal: 14, gap: 10 },
-  itemCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#F5F6F8',
-    borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 14,
-  },
-  itemIcon: {
-    width: 42, height: 42, borderRadius: 12,
-    backgroundColor: '#E8EAED',
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  },
-  itemLabel: {
-    flex: 1, fontSize: 15, color: '#1F2937', fontWeight: '500', lineHeight: 21,
-  },
 });

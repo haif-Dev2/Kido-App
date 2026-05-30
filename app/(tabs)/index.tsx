@@ -1,21 +1,27 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable, RefreshControl, Alert,
+  Alert,
+  Pressable, RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
-import { Colors } from '../../constants/Colors';
-import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
-import { fetchSitters, applyRealDistances } from '../../lib/api/sitters';
-import { getCurrentLocation } from '../../lib/location-service';
-import { useAuth } from '../../providers/auth-provider';
-import { supabase } from '../../lib/supabase';
-import { useFavoritesStore } from '../../store/favorites-store';
-import { useResponsive, fluid, MAX_CONTENT_WIDTH } from '../../lib/responsive';
 import { VisitorBanner } from '../../components/ui/VisitorBanner';
+import { Colors } from '../../constants/Colors';
+import { applyRealDistances, fetchSitters } from '../../lib/api/sitters';
+import { getCurrentLocation } from '../../lib/location-service';
+import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
+import { fluid, MAX_CONTENT_WIDTH, useResponsive } from '../../lib/responsive';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../providers/auth-provider';
+import { useFavoritesStore } from '../../store/favorites-store';
 
 function getGreeting(date: Date = new Date()): string {
   const h = date.getHours();
@@ -25,18 +31,7 @@ function getGreeting(date: Date = new Date()): string {
   return 'Good evening';
 }
 
-type FilterKey = 'all' | 'babysitter' | 'now' | 'verified' | 'near';
-
-function applyFilter(list: MockSitter[], filter: FilterKey): MockSitter[] {
-  switch (filter) {
-    case 'now':      return list.filter(s => s.availableNow);
-    case 'verified': return list.filter(s => s.identityVerified);
-    case 'near':     return list.filter(s => s.distanceKm <= 2);
-    case 'babysitter':
-    case 'all':
-    default:         return list;
-  }
-}
+type FilterKey = 'all' | 'now' | 'verified' | 'near';
 
 /* ── Centred content wrapper — caps width on desktop ── */
 function ContentWrap({ children, hp, maxW = MAX_CONTENT_WIDTH }: {
@@ -57,20 +52,34 @@ export default function HomeScreen() {
   const { profile, session, isVisitor } = useAuth();
   const { isTablet, isDesktop, isWide, hPad, width: vw } = useResponsive();
 
-  const [filter,      setFilter]      = useState<FilterKey>('all');
+  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(['all']));
   const [unreadCount, setUnreadCount] = useState(0);
-  const [greeting,    setGreeting]    = useState<string>(() => getGreeting());
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [sitters,     setSitters]     = useState<MockSitter[]>(MOCK_SITTERS);
+  const [greeting, setGreeting] = useState<string>(() => getGreeting());
+  const [refreshing, setRefreshing] = useState(false);
+  const [sitters, setSitters] = useState<MockSitter[]>(MOCK_SITTERS);
+
+  const toggleFilter = (key: FilterKey) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (key === 'all') {
+        return new Set(['all']);
+      }
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.delete('all');
+        next.add(key);
+      }
+      if (next.size === 0) return new Set(['all']);
+      return next;
+    });
+  };
 
   // Responsive layout values
   const gridCols       = isDesktop ? 3 : isTablet ? 2 : 1;
   const cardLimit      = isDesktop ? 9 : isTablet ? 6 : 3;
-  // Nearby card: wider on bigger screens
   const nearbyCardW    = isDesktop ? 220 : isTablet ? 200 : 170;
-  // On desktop the nearby section wraps into a grid instead of a carousel
   const nearbyAsGrid   = isDesktop || isTablet;
-  // Max width for the hero inner content
   const heroMaxW       = isWide ? MAX_CONTENT_WIDTH : undefined;
 
   // Fluid typography
@@ -128,21 +137,37 @@ export default function HomeScreen() {
   const photoUri = profile?.photo_url
     ?? 'https://images.unsplash.com/photo-1554151228-14d9def656e4?w=200';
 
-  const filtered = useMemo(() => applyFilter(sitters, filter), [sitters, filter]);
-  const nearby   = useMemo(
-    () => [...filtered].sort((a, b) => a.distanceKm - b.distanceKm).slice(0, cardLimit),
-    [filtered, cardLimit],
-  );
+  // Apply active filters
+  const nearby = useMemo(() => {
+    let list = [...sitters];
+
+    if (!activeFilters.has('all')) {
+      list = list.filter(s => {
+        if (activeFilters.has('now') && !s.availableNow) return false;
+        if (activeFilters.has('verified') && !s.identityVerified) return false;
+        if (activeFilters.has('near') && s.distanceKm > 3) return false;
+        return true;
+      });
+    }
+
+    return list
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, cardLimit);
+  }, [sitters, activeFilters, cardLimit]);
+
   const topRated = useMemo(
-    () => [...filtered].sort((a, b) => b.averageRating - a.averageRating).slice(0, cardLimit),
-    [filtered, cardLimit],
+    () => [...sitters]
+      .sort((a, b) => b.averageRating - a.averageRating)
+      .slice(0, cardLimit),
+    [sitters, cardLimit],
   );
+
   const recent = useMemo(() => {
     const topRatedIds = new Set(topRated.map(s => s.id));
-    const available   = filtered.filter(s => s.availableNow && !topRatedIds.has(s.id));
+    const available = sitters.filter(s => s.availableNow && !topRatedIds.has(s.id));
     if (available.length > 0) return available.slice(0, cardLimit);
-    return filtered.filter(s => !topRatedIds.has(s.id)).slice(0, cardLimit);
-  }, [filtered, topRated, cardLimit]);
+    return sitters.filter(s => !topRatedIds.has(s.id)).slice(0, cardLimit);
+  }, [sitters, topRated, cardLimit]);
 
   return (
     <View style={s.page}>
@@ -169,9 +194,7 @@ export default function HomeScreen() {
           <View style={s.heroBlob1} />
           <View style={s.heroBlob2} />
 
-          {/* Inner hero content — centered & capped on wide screens */}
           <View style={{ maxWidth: heroMaxW, width: '100%', alignSelf: 'center' }}>
-            {/* Header row */}
             <View style={[s.headerRow, { paddingTop: insets.top + 10, paddingHorizontal: hPad }]}>
               <View style={{ flex: 1 }}>
                 <Text style={[s.greeting, { fontSize: greetingFs }]}>
@@ -190,7 +213,7 @@ export default function HomeScreen() {
                 accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
               >
                 <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
-                {unreadCount > 0 ? (
+                {!isVisitor && unreadCount > 0 ? (
                   <View style={s.bellBadge}>
                     <Text style={s.bellBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
                   </View>
@@ -202,7 +225,6 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Search bar — floats on gradient */}
             <Pressable
               style={[s.searchBar, { marginHorizontal: hPad, marginTop: isDesktop ? 24 : 18 }]}
               onPress={() => router.push('/(tabs)/search')}
@@ -258,11 +280,10 @@ export default function HomeScreen() {
             contentContainerStyle={{ paddingHorizontal: hPad, gap: 8 }}
             style={{ marginTop: 18 }}
           >
-            <Chip label="All"           active={filter === 'all'}        onPress={() => setFilter('all')} />
-            <Chip label="Babysitter"    active={filter === 'babysitter'} onPress={() => setFilter('babysitter')} />
-            <Chip label="Available Now" active={filter === 'now'}        onPress={() => setFilter('now')} />
-            <Chip label="Verified"      active={filter === 'verified'}   onPress={() => setFilter('verified')} icon="checkmark-circle" />
-            <Chip label="Near Me"       active={filter === 'near'}       onPress={() => setFilter('near')} />
+            <Chip label="All" active={activeFilters.has('all')} onPress={() => toggleFilter('all')} />
+            <Chip label="Available Now" active={activeFilters.has('now')} onPress={() => toggleFilter('now')} />
+            <Chip label="Verified" active={activeFilters.has('verified')} onPress={() => toggleFilter('verified')} icon="checkmark-circle" />
+            <Chip label="Near Me" active={activeFilters.has('near')} onPress={() => toggleFilter('near')} />
           </ScrollView>
         </View>
 
@@ -271,7 +292,6 @@ export default function HomeScreen() {
         {nearby.length === 0 ? (
           <ContentWrap hp={hPad}><EmptyMessage label="No sitters match this filter" /></ContentWrap>
         ) : nearbyAsGrid ? (
-          // Tablet/desktop: wrap grid
           <ContentWrap hp={hPad - 6}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
               {nearby.map(sitter => (
@@ -287,7 +307,6 @@ export default function HomeScreen() {
             </View>
           </ContentWrap>
         ) : (
-          // Phone: horizontal carousel
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -611,7 +630,6 @@ function TinyChip({
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F4F6F9' },
 
-  /* ── Hero ── */
   hero: {
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -632,7 +650,6 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
 
-  /* ── Header row ── */
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -659,7 +676,6 @@ const s = StyleSheet.create({
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.55)',
   },
 
-  /* ── Search bar ── */
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#FFFFFF',
@@ -675,7 +691,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  /* ── Promo ── */
   promo: {
     marginTop: 18,
     height: 76, borderRadius: 18, overflow: 'hidden',
@@ -697,7 +712,6 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
 
-  /* ── Filter chips ── */
   chip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 999,
@@ -708,7 +722,6 @@ const s = StyleSheet.create({
   chipText:       { fontSize: 13, color: Colors.light.text, fontWeight: '600' },
   chipTextActive: { color: '#FFFFFF' },
 
-  /* ── Section header ── */
   sectionRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginTop: 22, marginBottom: 12,
@@ -717,7 +730,6 @@ const s = StyleSheet.create({
   sectionAccent: { width: 4, height: 20, borderRadius: 2, backgroundColor: Colors.light.primary },
   seeAllText:    { color: Colors.light.primary, fontSize: 13, fontWeight: '600', marginRight: 2 },
 
-  /* ── Nearby tile ── */
   nearbyCard: {
     width: 170, padding: 14,
     backgroundColor: '#FFFFFF', borderRadius: 18,
@@ -752,7 +764,6 @@ const s = StyleSheet.create({
   },
   bookBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
-  /* ── Row card ── */
   rowCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -772,7 +783,6 @@ const s = StyleSheet.create({
     backgroundColor: '#10B981', borderWidth: 2, borderColor: '#FFFFFF',
   },
 
-  /* ── Tiny chip ── */
   tinyChip: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 8, paddingVertical: 3,
@@ -780,7 +790,6 @@ const s = StyleSheet.create({
   },
   tinyChipText: { fontSize: 10, fontWeight: '700' },
 
-  /* ── Available inline badge ── */
   availableInline: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 6, paddingVertical: 3, gap: 4,
@@ -788,7 +797,6 @@ const s = StyleSheet.create({
   availableDot:        { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
   availableInlineText: { color: '#10B981', fontSize: 11, fontWeight: '700' },
 
-  /* ── Empty state ── */
   emptyBox: {
     paddingVertical: 20,
     backgroundColor: '#FFFFFF',

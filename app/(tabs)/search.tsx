@@ -1,20 +1,26 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Pressable,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Colors } from '../../constants/Colors';
-import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
-import { fetchSitters, applyRealDistances } from '../../lib/api/sitters';
-import { useFavoritesStore } from '../../store/favorites-store';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Modal, Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Map } from '../../components/ui/Map';
-import { useResponsive } from '../../lib/responsive';
-import { getCurrentLocation } from '../../lib/location-service';
-import { useAuth } from '../../providers/auth-provider';
 import { VisitorBanner } from '../../components/ui/VisitorBanner';
+import { Colors } from '../../constants/Colors';
+import { applyRealDistances, fetchSitters } from '../../lib/api/sitters';
+import { getCurrentLocation } from '../../lib/location-service';
+import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
+import { useResponsive } from '../../lib/responsive';
+import { useAuth } from '../../providers/auth-provider';
+import { useFavoritesStore } from '../../store/favorites-store';
 
 type SortKey = 'relevance' | 'distance' | 'rating' | 'price';
 type ViewMode = 'list' | 'map';
@@ -76,6 +82,14 @@ export default function SearchScreen() {
     (verifiedOnly ? 1 : 0) + (availableNowOnly ? 1 : 0) +
     (minRating > 0 ? 1 : 0) + (maxPrice > 0 ? 1 : 0) + (maxDistanceKm > 0 ? 1 : 0);
 
+  const hasActiveSearch =
+    query.trim() !== '' ||
+    verifiedOnly ||
+    availableNowOnly ||
+    minRating > 0 ||
+    maxPrice > 0 ||
+    maxDistanceKm > 0;
+
   const openFilters = () => {
     // Pre-populate pending state from current applied state
     setPendingMinRating(minRating);
@@ -101,9 +115,23 @@ export default function SearchScreen() {
   };
 
   const results = useMemo<MockSitter[]>(() => {
+    // Don't show any results before the user has typed or filtered anything.
+    if (!query.trim() && !verifiedOnly && !availableNowOnly && minRating === 0 && maxPrice === 0 && maxDistanceKm === 0) {
+      return [];
+    }
+
     const q = query.trim().toLowerCase();
     const list = sitters.filter(s => {
-      if (q && ![s.firstName, s.lastName, s.neighborhood].some(x => x.toLowerCase().includes(q))) return false;
+      if (q) {
+        const fields = [
+          s.firstName,
+          s.lastName,
+          `${s.firstName} ${s.lastName}`,
+          s.neighborhood,
+          s.location,           // ← Key fix: allows partial city match (e.g. "alg" matches "Algiers")
+        ].map(x => (x ?? '').toLowerCase());
+        if (!fields.some(f => f.includes(q))) return false;
+      }
       if (verifiedOnly && !s.identityVerified) return false;
       if (availableNowOnly && !s.availableNow) return false;
       if (minRating > 0 && s.averageRating < minRating) return false;
@@ -180,7 +208,11 @@ export default function SearchScreen() {
 
           <View style={s.mapPill}>
             <Ionicons name="location" size={14} color={Colors.light.primary} />
-            <Text style={s.mapPillText}>Algiers · {results.length} nearby</Text>
+            <Text style={s.mapPillText}>
+              {hasActiveSearch
+                ? `${results.length} résultat${results.length !== 1 ? 's' : ''} à proximité`
+                : 'Recherchez une ville'}
+            </Text>
           </View>
 
           {/* View mode toggle */}
@@ -211,16 +243,20 @@ export default function SearchScreen() {
         </View>
 
         {/* Summary + sort */}
-        <View style={s.summaryRow}>
-          <Text style={s.summaryCount}>{results.length} babysitters found</Text>
-          <View style={{ flexDirection: 'row', gap: 14 }}>
-            {(['relevance', 'distance', 'rating', 'price'] as SortKey[]).map(k => (
-              <TouchableOpacity key={k} onPress={() => setSort(k)} activeOpacity={0.7} accessibilityRole="button">
-                <Text style={[s.sortLabel, sort === k && s.sortLabelActive]}>{label(k)}</Text>
-              </TouchableOpacity>
-            ))}
+        {hasActiveSearch && (
+          <View style={s.summaryRow}>
+            <Text style={s.summaryCount}>
+              {results.length} baby-sitter{results.length !== 1 ? 's' : ''} trouvé{results.length !== 1 ? 's' : ''}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 14 }}>
+              {(['relevance', 'distance', 'rating', 'price'] as SortKey[]).map(k => (
+                <TouchableOpacity key={k} onPress={() => setSort(k)} activeOpacity={0.7}>
+                  <Text style={[s.sortLabel, sort === k && s.sortLabelActive]}>{label(k)}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Results list */}
         {mode === 'list' ? (
@@ -233,7 +269,7 @@ export default function SearchScreen() {
               </View>
             </View>
           ) : gridCols === 1 ? (
-            // Single-column phone list (preserves the original mobile UX).
+            // Single-column phone list
             <View style={{ paddingHorizontal: 20, gap: 10 }}>
               {results.map(sitter => (
                 <RowCard
@@ -246,7 +282,7 @@ export default function SearchScreen() {
               ))}
             </View>
           ) : (
-            // Tablet/desktop grid (2 or 3 columns).
+            // Tablet/desktop grid
             <View style={{ paddingHorizontal: 14 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                 {results.map(sitter => (
@@ -293,11 +329,19 @@ export default function SearchScreen() {
           <Pressable style={s.filterSheet} onPress={e => e.stopPropagation()}>
             <View style={s.sheetHandle} />
 
-            {/* Header */}
+            {/* Header with close button */}
             <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>Filters</Text>
+              <TouchableOpacity
+                onPress={() => setShowFilters(false)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Close filters"
+              >
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+              <Text style={s.sheetTitle}>Filtres</Text>
               <TouchableOpacity onPress={clearAllFilters} hitSlop={8}>
-                <Text style={s.sheetClearAll}>Clear all</Text>
+                <Text style={s.sheetClearAll}>Tout effacer</Text>
               </TouchableOpacity>
             </View>
 
@@ -530,12 +574,6 @@ const s = StyleSheet.create({
     backgroundColor: '#DEF1EE',
     overflow: 'hidden',
   },
-  pin: {
-    position: 'absolute',
-    width: 10, height: 10, borderRadius: 5,
-    backgroundColor: Colors.light.primary,
-    borderWidth: 2, borderColor: '#FFFFFF',
-  },
   mapPill: {
     position: 'absolute', bottom: 10, left: 10,
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -554,8 +592,6 @@ const s = StyleSheet.create({
   },
   viewToggleItem: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    // Slightly bigger padding so each option meets a usable tap target
-    // even when the visual stays small.
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
   },
   viewToggleActive: { backgroundColor: Colors.light.primary },
@@ -570,7 +606,7 @@ const s = StyleSheet.create({
   sortLabel: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
   sortLabelActive: { color: Colors.light.primary, fontWeight: '700' },
 
-  // Row card (same design as home)
+  // Row card
   rowCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -668,8 +704,11 @@ const s = StyleSheet.create({
     alignSelf: 'center', marginBottom: 16,
   },
   sheetHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
   sheetClearAll: { fontSize: 13, fontWeight: '700', color: Colors.light.primary },

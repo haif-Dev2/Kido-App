@@ -1,29 +1,32 @@
 import '../global.css';
 
-import { useEffect } from 'react';
-import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useFonts as usePlusJakarta,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
-} from '@expo-google-fonts/plus-jakarta-sans';
-import { useFonts as useInter,
+import {
+  Fraunces_500Medium,
+  Fraunces_600SemiBold,
+  useFonts as useFraunces,
+} from '@expo-google-fonts/fraunces';
+import {
   Inter_400Regular,
   Inter_500Medium,
   Inter_600SemiBold,
   Inter_700Bold,
+  useFonts as useInter,
 } from '@expo-google-fonts/inter';
-import { useFonts as useFraunces,
-  Fraunces_500Medium,
-  Fraunces_600SemiBold,
-} from '@expo-google-fonts/fraunces';
-import { AuthProvider } from '../providers/auth-provider';
+import {
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
+  useFonts as usePlusJakarta,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { MAX_CONTENT_WIDTH } from '../lib/responsive';
+import { AuthProvider } from '../providers/auth-provider';
 
 const isWeb = Platform.OS === 'web';
 
@@ -59,18 +62,18 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="splash" options={{ animation: 'fade' }} />
             <Stack.Screen name="onboarding" />
-            <Stack.Screen name="login" />
+            <Stack.Screen name="login" options={{ gestureEnabled: false }} />
             <Stack.Screen name="register" />
             <Stack.Screen name="register-step1" />
             <Stack.Screen name="register-otp" />
-            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
             <Stack.Screen name="sitter/[id]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="booking/new/[sitterId]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="booking/[id]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="review/new/[bookingId]" options={{ presentation: 'modal' }} />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="edit-profile" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="sitter-home" options={{ animation: 'fade' }} />
+            <Stack.Screen name="sitter-home" options={{ animation: 'fade', gestureEnabled: false }} />
           </Stack>
         </BottomSheetModalProvider>
       </AuthProvider>

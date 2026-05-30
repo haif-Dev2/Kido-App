@@ -1,22 +1,26 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  RefreshControl, ActivityIndicator,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView, StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { VisitorPlaceholder } from '../../components/ui/VisitorPlaceholder';
+import { Colors } from '../../constants/Colors';
+import { haptics } from '../../lib/haptics';
 import { MOCK_BOOKINGS, type MockBooking } from '../../lib/mock/bookings';
 import { MOCK_SITTERS } from '../../lib/mock/sitters';
-import { haptics } from '../../lib/haptics';
+import { useResponsive } from '../../lib/responsive';
 import { supabase } from '../../lib/supabase';
 import { BookingStatus } from '../../models/types';
-import { Colors } from '../../constants/Colors';
-import { useResponsive } from '../../lib/responsive';
 import { useAuth } from '../../providers/auth-provider';
-import { VisitorPlaceholder } from '../../components/ui/VisitorPlaceholder';
 
 type TabKey = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
 
@@ -197,7 +201,12 @@ export default function BookingsScreen() {
       {/* Booking list / grid */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 110, paddingTop: 12 }}
+        contentContainerStyle={{
+          paddingBottom: insets.bottom + 110,
+          paddingTop: 16,
+          paddingHorizontal: 16,
+          gap: 10,
+        }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => loadBookings(true)} tintColor={Colors.light.primary} />
         }
@@ -218,23 +227,21 @@ export default function BookingsScreen() {
             </TouchableOpacity>
           </View>
         ) : gridCols === 1 ? (
-          <View style={{ paddingHorizontal: 16, gap: 12 }}>
+          <View style={{ gap: 12 }}>
             {filtered.map(booking => (
               <BookingCard key={String(booking.id)} booking={booking} router={router} />
             ))}
           </View>
         ) : (
-          <View style={{ paddingHorizontal: 10 }}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              {filtered.map(booking => (
-                <View
-                  key={String(booking.id)}
-                  style={{ width: `${100 / gridCols}%`, paddingHorizontal: 6, paddingBottom: 12 }}
-                >
-                  <BookingCard booking={booking} router={router} />
-                </View>
-              ))}
-            </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {filtered.map(booking => (
+              <View
+                key={String(booking.id)}
+                style={{ width: `${100 / gridCols}%`, paddingHorizontal: 6, paddingBottom: 12 }}
+              >
+                <BookingCard booking={booking} router={router} />
+              </View>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -330,8 +337,14 @@ const s = StyleSheet.create({
   statValue: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
   statLabel: { fontSize: 11, color: '#6B7280', fontWeight: '600', marginTop: 2 },
 
-  tabsScroll: { backgroundColor: '#FFFFFF', maxHeight: 56 },
-  tabs: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  tabsScroll: { 
+    backgroundColor: '#FFFFFF', 
+    maxHeight: 56, 
+    zIndex: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  tabs: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   tab: {
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 999, borderWidth: 1, borderColor: '#E5E7EB',
