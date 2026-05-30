@@ -33,7 +33,7 @@ const TRUST_ITEMS = [
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { enterVisitorMode } = useAuth();   // Added for visitor mode
+  const { enterVisitorMode } = useAuth();
   const params = useLocalSearchParams<{ justSignedUp?: string; email?: string }>();
   const justSignedUp = params.justSignedUp === '1';
   const { isPhone } = useResponsive();
@@ -196,7 +196,7 @@ export default function LoginScreen() {
     </Modal>
   );
 
-  /* ── Shared form fields (used in both layouts) ── */
+  /* ── Shared form fields ── */
   const formFields = (
     <>
       <View style={{ marginBottom: 16 }}>
@@ -295,7 +295,7 @@ export default function LoginScreen() {
     </>
   );
 
-  /* ── Mobile: original layout (now used everywhere) ── */
+  /* ── Main Layout ── */
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={[styles.scrollContent, { alignItems: 'center' }]} bounces={false}>
@@ -311,14 +311,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.formContainer}>
-            <View style={styles.badgeContainer}>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>WELCOME TO </Text>
-                <Text style={styles.badgeTextBold}>Kido</Text>
-              </View>
-            </View>
-
-            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.title}>Welcome</Text>
             <Text style={styles.subtitle}>Sign in to find trusted babysitters for your family</Text>
 
             {formFields}
@@ -343,22 +336,36 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
 
-      <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+      {/* Bottom Navigation with improved spacing */}
+      <View style={[styles.bottomNav, { 
+        paddingBottom: Math.max(insets.bottom + 16, 36) 
+      }]}>
+
+        {/* Sign Up row */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 16 }}>
           <Text style={styles.bottomNavText}>Don&apos;t have an account? </Text>
           <TouchableOpacity onPress={() => router.push('/register')}>
             <Text style={styles.bottomNavLink}>Sign Up</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Divider */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 16, paddingHorizontal: 8 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: '#EBEBEB' }} />
+          <Text style={{ fontSize: 11, color: '#C4C4C4', fontWeight: '500', marginHorizontal: 10 }}>or</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: '#EBEBEB' }} />
+        </View>
+
+        {/* Browse as Visitor */}
         <TouchableOpacity
           onPress={() => { enterVisitorMode(); router.replace('/(tabs)'); }}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 4 }}
+          activeOpacity={0.7}
         >
-          <Ionicons name="eye-outline" size={14} color="#9CA3AF" />
-          <Text style={{ color: '#9CA3AF', fontSize: 13, fontWeight: '500' }}>
-            Continuer en tant que visiteur
-          </Text>
+          <Ionicons name="eye-outline" size={15} color="#9CA3AF" style={{ marginRight: 6 }} />
+          <Text style={{ color: '#9CA3AF', fontSize: 13, fontWeight: '500' }}>Browse as a Visitor</Text>
         </TouchableOpacity>
+
       </View>
 
       {resetModal}
@@ -379,14 +386,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32, borderTopRightRadius: 32,
     marginTop: -40, paddingHorizontal: 24, paddingTop: 40,
   },
-  badgeContainer: { position: 'absolute', top: -24, left: 0, right: 0, alignItems: 'center', zIndex: 10 },
-  badge: {
-    flexDirection: 'row', backgroundColor: Colors.light.primary,
-    paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 5,
-  },
-  badgeText: { color: Colors.light.white, fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
-  badgeTextBold: { color: Colors.light.white, fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
   title: { fontSize: 28, fontWeight: '800', color: Colors.light.text, textAlign: 'center', marginBottom: 8 },
   subtitle: { fontSize: 14, color: Colors.light.textSecondary, textAlign: 'center', marginBottom: 32, paddingHorizontal: 20 },
   forgotPasswordContainer: { alignItems: 'flex-end', marginBottom: 24 },
@@ -413,15 +412,23 @@ const styles = StyleSheet.create({
   securityBadge: { flexDirection: 'row', alignItems: 'center' },
   securityText: { color: Colors.light.textSecondary, fontSize: 12, marginLeft: 4 },
   securityDot: { color: '#D1D5DB', marginHorizontal: 12, fontSize: 12 },
+
   bottomNav: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
-    paddingVertical: 24, backgroundColor: Colors.light.white,
-    borderTopWidth: 1, borderTopColor: Colors.light.border,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    width: '100%',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 0,
+    alignItems: 'center',
+    flexDirection: 'column',
+    backgroundColor: Colors.light.white,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F5F5',
+    gap: 0,
   },
+
   bottomNavText: { color: Colors.light.textSecondary, fontSize: 14 },
   bottomNavLink: { color: Colors.light.primary, fontSize: 14, fontWeight: '700' },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: Colors.light.white,

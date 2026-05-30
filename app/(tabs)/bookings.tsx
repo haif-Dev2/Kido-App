@@ -59,8 +59,6 @@ export default function BookingsScreen() {
   const { isVisitor } = useAuth();
   const { isTablet, isDesktop } = useResponsive();
 
-  // Responsive grid: 1 col phone, 2 col tablet/desktop. Booking cards have
-  // enough content that 3 cols feel cramped even on 1280-px screens.
   const gridCols = isDesktop || isTablet ? 2 : 1;
 
   const [items, setItems] = useState<MockBooking[]>(MOCK_BOOKINGS);
@@ -133,11 +131,9 @@ export default function BookingsScreen() {
     );
   }
 
-  // ── Visitor state ──────────────────────────────────────────────────────────
   if (isVisitor) {
     return (
       <View style={[s.page, { paddingTop: insets.top }]}>
-        {/* Light blue header — exact Babysits style */}
         <View style={bvs.header}>
           <Text style={bvs.headerTitle}>Réservations</Text>
         </View>
@@ -151,7 +147,6 @@ export default function BookingsScreen() {
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
-      {/* Header — clean teal-soft gradient */}
       <LinearGradient
         colors={['#E6F4F5', '#FFFFFF']}
         start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
@@ -162,7 +157,6 @@ export default function BookingsScreen() {
           <Text style={s.headerSubtitle}>Track and manage your appointments</Text>
         </View>
 
-        {/* Quick-stats row */}
         <View style={s.statsRow}>
           <StatPill icon="calendar" tint={Colors.light.primary}
             value={String(stats.upcoming)} label="Upcoming" />
@@ -198,12 +192,16 @@ export default function BookingsScreen() {
         })}
       </ScrollView>
 
+      {/* Explicit separator between tabs and booking list */}
+      <View style={{ height: 10, backgroundColor: '#F3F5F7' }} />
+
       {/* Booking list / grid */}
       <ScrollView
+        style={{ flex: 1, backgroundColor: '#F3F5F7' }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingBottom: insets.bottom + 110,
-          paddingTop: 16,
+          paddingTop: 12,
           paddingHorizontal: 16,
           gap: 10,
         }}
@@ -319,7 +317,6 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 26, fontWeight: '800', color: '#0F172A' },
   headerSubtitle: { fontSize: 13, color: '#6B7280', marginTop: 2 },
 
-  // Stats row
   statsRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   statPill: {
     flex: 1, minWidth: 130,
@@ -339,10 +336,10 @@ const s = StyleSheet.create({
 
   tabsScroll: { 
     backgroundColor: '#FFFFFF', 
-    maxHeight: 56, 
-    zIndex: 1,
+    maxHeight: 56,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
+    marginBottom: 2,
   },
   tabs: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   tab: {

@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Dimensions,
   Modal, Pressable,
   ScrollView,
   StyleSheet,
@@ -40,23 +41,23 @@ export default function SearchScreen() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Filter state
-  const [minRating, setMinRating] = useState(0);         // 0 = any
-  const [maxPrice, setMaxPrice] = useState(0);           // 0 = any
-  const [maxDistanceKm, setMaxDistanceKm] = useState(0); // 0 = any
+  const [minRating, setMinRating] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(0);
+  const [maxDistanceKm, setMaxDistanceKm] = useState(0);
 
-  // Pending filter state (applied only when user taps Apply)
+  // Pending filter state
   const [pendingMinRating, setPendingMinRating] = useState(0);
   const [pendingMaxPrice, setPendingMaxPrice] = useState(0);
   const [pendingMaxDist, setPendingMaxDist] = useState(0);
   const [pendingVerified, setPendingVerified] = useState(false);
   const [pendingAvailNow, setPendingAvailNow] = useState(false);
 
-  // Number of result columns by viewport. Map height also scales — bigger
-  // viewports get a more useful map (260 / 360 vs the phone 160).
   const gridCols = isDesktop ? 3 : isTablet ? 2 : 1;
-  const mapHeight = isDesktop ? 360 : isTablet ? 260 : 160;
 
-  // Shared favorites store (synced with the Home tab and persisted to AsyncStorage).
+  const { height: SCREEN_H } = Dimensions.get('window');
+  const NEAR_ME_KM = 20;
+  const baseMapHeight = isDesktop ? 280 : isTablet ? 220 : Math.round(SCREEN_H * 0.35);
+
   const favoriteIds   = useFavoritesStore(s => s.ids);
   const toggleFavorite = useFavoritesStore(s => s.toggle);
   const hydrateFavorites = useFavoritesStore(s => s.hydrate);
@@ -64,7 +65,6 @@ export default function SearchScreen() {
   useEffect(() => { hydrateFavorites(); }, [hydrateFavorites]);
 
   useEffect(() => {
-    // Load sitters then try to get real GPS location and recalculate distances
     fetchSitters().then(async (list) => {
       setSitters(list);
       try {
@@ -91,7 +91,6 @@ export default function SearchScreen() {
     maxDistanceKm > 0;
 
   const openFilters = () => {
-    // Pre-populate pending state from current applied state
     setPendingMinRating(minRating);
     setPendingMaxPrice(maxPrice);
     setPendingMaxDist(maxDistanceKm);
@@ -110,12 +109,14 @@ export default function SearchScreen() {
   };
 
   const clearAllFilters = () => {
-    setPendingMinRating(0); setPendingMaxPrice(0); setPendingMaxDist(0);
-    setPendingVerified(false); setPendingAvailNow(false);
+    setPendingMinRating(0); 
+    setPendingMaxPrice(0); 
+    setPendingMaxDist(0);
+    setPendingVerified(false); 
+    setPendingAvailNow(false);
   };
 
   const results = useMemo<MockSitter[]>(() => {
-    // Don't show any results before the user has typed or filtered anything.
     if (!query.trim() && !verifiedOnly && !availableNowOnly && minRating === 0 && maxPrice === 0 && maxDistanceKm === 0) {
       return [];
     }
@@ -124,11 +125,8 @@ export default function SearchScreen() {
     const list = sitters.filter(s => {
       if (q) {
         const fields = [
-          s.firstName,
-          s.lastName,
-          `${s.firstName} ${s.lastName}`,
           s.neighborhood,
-          s.location,           // ← Key fix: allows partial city match (e.g. "alg" matches "Algiers")
+          s.location,
         ].map(x => (x ?? '').toLowerCase());
         if (!fields.some(f => f.includes(q))) return false;
       }
@@ -136,7 +134,10 @@ export default function SearchScreen() {
       if (availableNowOnly && !s.availableNow) return false;
       if (minRating > 0 && s.averageRating < minRating) return false;
       if (maxPrice > 0 && s.hourlyRate > maxPrice) return false;
-      if (maxDistanceKm > 0 && s.distanceKm > maxDistanceKm) return false;
+
+      const distCap = maxDistanceKm > 0 ? maxDistanceKm : NEAR_ME_KM * 5;
+      if (s.distanceKm > distCap) return false;
+
       return true;
     });
     return [...list].sort((a, b) => {
@@ -152,173 +153,187 @@ export default function SearchScreen() {
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
       {isVisitor && <VisitorBanner />}
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Search bar */}
-        <View style={s.searchRow}>
-          <View style={s.searchBar}>
-            <Ionicons name="search" size={18} color="#9CA3AF" />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search city or area..."
-              placeholderTextColor="#9CA3AF"
-              style={s.searchInput}
-              accessibilityLabel="Search"
-              returnKeyType="search"
-            />
-          </View>
+
+      {/* Search bar — fixed at top */}
+      <View style={s.searchRow}>
+        <View style={s.searchBar}>
+          <Ionicons name="search" size={18} color="#9CA3AF" />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search city or area..."
+            placeholderTextColor="#9CA3AF"
+            style={s.searchInput}
+            accessibilityLabel="Search"
+            returnKeyType="search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={s.filterBtn}
+          activeOpacity={0.8}
+          onPress={openFilters}
+          accessibilityRole="button"
+          accessibilityLabel={`Filters, ${activeFilterCount} active`}
+        >
+          <Ionicons name="options" size={18} color="#FFFFFF" />
+          {activeFilterCount > 0 ? (
+            <View style={s.filterBadge}>
+              <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          ) : null}
+        </TouchableOpacity>
+      </View>
+
+      {/* Map — outside ScrollView to prevent zoom/scroll conflicts */}
+      <View style={mode === 'map' ? s.mapExpanded : [s.map, { height: baseMapHeight }]}>
+        <Map
+          markers={results.map(s => ({
+            latitude: s.latitude,
+            longitude: s.longitude,
+            title: `${s.firstName} ${s.lastName}`,
+            description: `${s.hourlyRate} DZD/hr`,
+          }))}
+          center={{ latitude: 36.7372, longitude: 3.0869 }}
+          showUserLocation
+          height={mode === 'map' ? Math.round(SCREEN_H * 0.72) : baseMapHeight}
+          onMarkerPress={(marker) => {
+            const sitter = results.find(s => `${s.firstName} ${s.lastName}` === marker.title);
+            if (sitter) {
+              router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } });
+            }
+          }}
+        />
+
+        <View style={s.mapPill}>
+          <Ionicons name="location" size={14} color={Colors.light.primary} />
+          <Text style={s.mapPillText}>
+            {hasActiveSearch
+              ? `${results.length} résultat${results.length !== 1 ? 's' : ''} à proximité`
+              : 'Recherchez une ville'}
+          </Text>
+        </View>
+
+        {/* View mode toggle */}
+        <View style={s.viewToggle}>
           <TouchableOpacity
-            style={s.filterBtn}
+            style={[s.viewToggleItem, mode === 'list' && s.viewToggleActive]}
+            onPress={() => setMode('list')}
             activeOpacity={0.8}
-            onPress={openFilters}
             accessibilityRole="button"
-            accessibilityLabel={`Filters, ${activeFilterCount} active`}
+            accessibilityLabel="List view"
+            accessibilityState={{ selected: mode === 'list' }}
           >
-            <Ionicons name="options" size={18} color="#FFFFFF" />
-            {activeFilterCount > 0 ? (
-              <View style={s.filterBadge}>
-                <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            ) : null}
+            <Ionicons name="list" size={13} color={mode === 'list' ? '#FFFFFF' : Colors.light.text} />
+            <Text style={[s.viewToggleText, mode === 'list' && { color: '#FFFFFF' }]}>List</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.viewToggleItem, mode === 'map' && s.viewToggleActive]}
+            onPress={() => setMode('map')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Map view"
+            accessibilityState={{ selected: mode === 'map' }}
+          >
+            <Ionicons name="map" size={13} color={mode === 'map' ? '#FFFFFF' : Colors.light.text} />
+            <Text style={[s.viewToggleText, mode === 'map' && { color: '#FFFFFF' }]}>Map</Text>
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Map */}
-        <View style={[s.map, { height: mapHeight }]}>
-          <Map
-            markers={results.map(s => ({
-              latitude: s.latitude,
-              longitude: s.longitude,
-              title: `${s.firstName} ${s.lastName}`,
-              description: `${s.hourlyRate} DZD/hr`,
-            }))}
-            center={{ latitude: 36.7372, longitude: 3.0869 }}
-            showUserLocation
-            height={mapHeight}
-            onMarkerPress={(marker) => {
-              const sitter = results.find(s => s.firstName + ' ' + s.lastName === marker.title);
-              if (sitter) {
-                router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } });
-              }
-            }}
-          />
+      {/* List content — only shown when in list mode */}
+      {mode === 'list' && (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Result count */}
+          {hasActiveSearch && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: '#0F172A', letterSpacing: -0.4 }}>
+                {results.length} babysitter{results.length !== 1 ? 's' : ''} found
+              </Text>
+            </View>
+          )}
 
-          <View style={s.mapPill}>
-            <Ionicons name="location" size={14} color={Colors.light.primary} />
-            <Text style={s.mapPillText}>
-              {hasActiveSearch
-                ? `${results.length} résultat${results.length !== 1 ? 's' : ''} à proximité`
-                : 'Recherchez une ville'}
-            </Text>
-          </View>
-
-          {/* View mode toggle */}
-          <View style={s.viewToggle}>
-            <TouchableOpacity
-              style={[s.viewToggleItem, mode === 'list' && s.viewToggleActive]}
-              onPress={() => setMode('list')}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="List view"
-              accessibilityState={{ selected: mode === 'list' }}
+          {/* Sort chips */}
+          {hasActiveSearch && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 4 }}
+              style={{ marginBottom: 8 }}
             >
-              <Ionicons name="list" size={13} color={mode === 'list' ? '#FFFFFF' : Colors.light.text} />
-              <Text style={[s.viewToggleText, mode === 'list' && { color: '#FFFFFF' }]}>List</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.viewToggleItem, mode === 'map' && s.viewToggleActive]}
-              onPress={() => setMode('map')}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Map view"
-              accessibilityState={{ selected: mode === 'map' }}
-            >
-              <Ionicons name="map" size={13} color={mode === 'map' ? '#FFFFFF' : Colors.light.text} />
-              <Text style={[s.viewToggleText, mode === 'map' && { color: '#FFFFFF' }]}>Map</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Summary + sort */}
-        {hasActiveSearch && (
-          <View style={s.summaryRow}>
-            <Text style={s.summaryCount}>
-              {results.length} baby-sitter{results.length !== 1 ? 's' : ''} trouvé{results.length !== 1 ? 's' : ''}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 14 }}>
-              {(['relevance', 'distance', 'rating', 'price'] as SortKey[]).map(k => (
-                <TouchableOpacity key={k} onPress={() => setSort(k)} activeOpacity={0.7}>
-                  <Text style={[s.sortLabel, sort === k && s.sortLabelActive]}>{label(k)}</Text>
+              {(['relevance', 'distance', 'rating', 'price'] as SortKey[]).map(key => (
+                <TouchableOpacity
+                  key={key}
+                  style={[s.sortChip, sort === key && s.sortChipActive]}
+                  onPress={() => setSort(key)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.sortChipTxt, sort === key && s.sortChipTxtActive]}>
+                    {key === 'relevance' ? 'Relevance' : key === 'distance' ? 'Distance' : key === 'rating' ? 'Rating' : 'Price'}
+                  </Text>
                 </TouchableOpacity>
               ))}
-            </View>
-          </View>
-        )}
+            </ScrollView>
+          )}
 
-        {/* Results list */}
-        {mode === 'list' ? (
-          results.length === 0 ? (
-            <View style={{ paddingHorizontal: 20 }}>
-              <View style={s.empty}>
-                <Ionicons name="search-outline" size={28} color="#9CA3AF" />
-                <Text style={s.emptyTitle}>No babysitters found</Text>
-                <Text style={s.emptySubtitle}>Try clearing filters or changing your search</Text>
+          {/* Results or hint */}
+          {hasActiveSearch ? (
+            results.length === 0 ? (
+              <View style={s.noResults}>
+                <Ionicons name="search-outline" size={32} color="#9CA3AF" />
+                <Text style={s.noResultsText}>No babysitters found</Text>
+                <Text style={s.noResultsSub}>Try a different city or remove some filters</Text>
               </View>
-            </View>
-          ) : gridCols === 1 ? (
-            // Single-column phone list
-            <View style={{ paddingHorizontal: 20, gap: 10 }}>
-              {results.map(sitter => (
-                <RowCard
-                  key={sitter.id}
-                  sitter={sitter}
-                  isFavorite={favoriteIds.has(sitter.id)}
-                  onToggleFavorite={() => toggleFavorite(sitter.id)}
-                  onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
-                />
-              ))}
-            </View>
-          ) : (
-            // Tablet/desktop grid
-            <View style={{ paddingHorizontal: 14 }}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            ) : gridCols === 1 ? (
+              <View style={{ paddingHorizontal: 20, gap: 10 }}>
                 {results.map(sitter => (
-                  <View
+                  <RowCard
                     key={sitter.id}
-                    style={{ width: `${100 / gridCols}%`, paddingHorizontal: 6, paddingBottom: 12 }}
-                  >
-                    <RowCard
-                      sitter={sitter}
-                      isFavorite={favoriteIds.has(sitter.id)}
-                      onToggleFavorite={() => toggleFavorite(sitter.id)}
-                      onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
-                    />
-                  </View>
+                    sitter={sitter}
+                    isFavorite={favoriteIds.has(sitter.id)}
+                    onToggleFavorite={() => toggleFavorite(sitter.id)}
+                    onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
+                  />
                 ))}
               </View>
+            ) : (
+              <View style={{ paddingHorizontal: 14 }}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                  {results.map(sitter => (
+                    <View
+                      key={sitter.id}
+                      style={{ width: `${100 / gridCols}%`, paddingHorizontal: 6, paddingBottom: 12 }}
+                    >
+                      <RowCard
+                        sitter={sitter}
+                        isFavorite={favoriteIds.has(sitter.id)}
+                        onToggleFavorite={() => toggleFavorite(sitter.id)}
+                        onPress={() => router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } })}
+                      />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )
+          ) : (
+            <View style={s.hint}>
+              <Ionicons name="search-outline" size={28} color="#D1D5DB" />
+              <Text style={s.hintText}>Search a city or neighborhood to find babysitters</Text>
             </View>
-          )
-        ) : (
-          <View style={s.mapMode}>
-            <Ionicons name="map-outline" size={36} color={Colors.light.primary} />
-            <Text style={s.mapModeTitle}>Map view</Text>
-            <Text style={s.mapModeSubtitle}>{results.length} babysitter{results.length === 1 ? '' : 's'} on the map above</Text>
-            <TouchableOpacity
-              style={s.mapModeBtn}
-              activeOpacity={0.85}
-              onPress={() => setMode('list')}
-            >
-              <Ionicons name="list" size={16} color="#FFFFFF" />
-              <Text style={s.mapModeBtnText}>Switch to list</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
+          )}
+        </ScrollView>
+      )}
 
-      {/* ── Filter bottom-sheet modal ── */}
+      {/* Filter modal */}
       <Modal
         visible={showFilters}
         transparent
@@ -329,7 +344,6 @@ export default function SearchScreen() {
           <Pressable style={s.filterSheet} onPress={e => e.stopPropagation()}>
             <View style={s.sheetHandle} />
 
-            {/* Header with close button */}
             <View style={s.sheetHeader}>
               <TouchableOpacity
                 onPress={() => setShowFilters(false)}
@@ -346,8 +360,6 @@ export default function SearchScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-
-              {/* Verified / Available toggles */}
               <View style={s.filterSection}>
                 <Text style={s.filterLabel}>Quick filters</Text>
                 <View style={s.toggleRow}>
@@ -368,7 +380,6 @@ export default function SearchScreen() {
                 </View>
               </View>
 
-              {/* Min rating */}
               <View style={s.filterSection}>
                 <Text style={s.filterLabel}>Minimum rating</Text>
                 <View style={s.ratingRow}>
@@ -391,7 +402,6 @@ export default function SearchScreen() {
                 </View>
               </View>
 
-              {/* Max price */}
               <View style={s.filterSection}>
                 <Text style={s.filterLabel}>Max price / hour</Text>
                 <View style={s.ratingRow}>
@@ -409,7 +419,6 @@ export default function SearchScreen() {
                 </View>
               </View>
 
-              {/* Max distance */}
               <View style={s.filterSection}>
                 <Text style={s.filterLabel}>Max distance</Text>
                 <View style={s.ratingRow}>
@@ -428,7 +437,6 @@ export default function SearchScreen() {
               </View>
             </ScrollView>
 
-            {/* Apply */}
             <TouchableOpacity style={s.applyBtn} onPress={applyFilters} activeOpacity={0.9}>
               <Text style={s.applyBtnTxt}>Show results</Text>
             </TouchableOpacity>
@@ -439,12 +447,7 @@ export default function SearchScreen() {
   );
 }
 
-function label(k: SortKey) {
-  return ({ relevance: 'Relevance', distance: 'Distance', rating: 'Rating', price: 'Price' })[k];
-}
-
-/* ──────────────────────────────── Row card (shared with Home) ──────────────────────────────── */
-
+/* RowCard and TinyChip */
 function RowCard({
   sitter, onPress, isFavorite, onToggleFavorite,
 }: {
@@ -535,14 +538,13 @@ function TinyChip({
   );
 }
 
-/* ──────────────────────────────── styles ──────────────────────────────── */
-
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F5F6F8' },
 
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 8, gap: 10,
+    backgroundColor: '#F5F6F8',
   },
   searchBar: {
     flex: 1,
@@ -567,12 +569,16 @@ const s = StyleSheet.create({
   },
   filterBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
 
-  // Map
   map: {
-    marginHorizontal: 20, marginTop: 12,
-    height: 160, borderRadius: 14,
+    marginHorizontal: 20,
+    marginTop: 8,
+    borderRadius: 14,
     backgroundColor: '#DEF1EE',
     overflow: 'hidden',
+  },
+  mapExpanded: {
+    flex: 1,
+    position: 'relative',
   },
   mapPill: {
     position: 'absolute', bottom: 10, left: 10,
@@ -583,6 +589,7 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   mapPillText: { fontSize: 12, color: Colors.light.text, fontWeight: '700' },
+
   viewToggle: {
     position: 'absolute', bottom: 10, right: 10,
     flexDirection: 'row',
@@ -597,16 +604,58 @@ const s = StyleSheet.create({
   viewToggleActive: { backgroundColor: Colors.light.primary },
   viewToggleText: { fontSize: 11, fontWeight: '700', color: Colors.light.text },
 
-  // Summary & sort
-  summaryRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, marginTop: 14, marginBottom: 10,
+  sortChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  summaryCount: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
-  sortLabel: { fontSize: 12, color: '#6B7280', fontWeight: '500' },
-  sortLabelActive: { color: Colors.light.primary, fontWeight: '700' },
+  sortChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  sortChipTxt: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  sortChipTxtActive: {
+    color: '#FFFFFF',
+  },
 
-  // Row card
+  noResults: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  noResultsText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 12,
+  },
+  noResultsSub: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
+  hint: {
+    alignItems: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  hintText: {
+    fontSize: 15,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 20,
+  },
+
   rowCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -647,46 +696,6 @@ const s = StyleSheet.create({
   availableDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
   availableInlineText: { color: '#10B981', fontSize: 11, fontWeight: '700' },
 
-  // Empty state
-  empty: {
-    paddingVertical: 32,
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-    gap: 6,
-  },
-  emptyTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text, marginTop: 4 },
-  emptySubtitle: { fontSize: 12, color: '#9CA3AF', textAlign: 'center', paddingHorizontal: 24 },
-
-  // Map mode placeholder
-  mapMode: {
-    marginHorizontal: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 32,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
-  },
-  mapModeTitle: { fontSize: 16, fontWeight: '800', color: Colors.light.text, marginTop: 4 },
-  mapModeSubtitle: { fontSize: 12, color: '#9CA3AF', textAlign: 'center' },
-  mapModeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 999,
-    marginTop: 10,
-  },
-  mapModeBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 13 },
-
-  // Filter modal
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'flex-end',

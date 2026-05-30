@@ -58,6 +58,12 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [sitters, setSitters] = useState<MockSitter[]>(MOCK_SITTERS);
 
+  // New contextual greeting + available count
+  const hour = new Date().getHours();
+  const contextualGreeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const firstName = profile?.first_name ?? session?.user?.user_metadata?.first_name ?? 'there';
+  const availableCount = sitters.filter(s => s.availableNow).length;
+
   const toggleFilter = (key: FilterKey) => {
     setActiveFilters(prev => {
       const next = new Set(prev);
@@ -197,45 +203,83 @@ export default function HomeScreen() {
           <View style={{ maxWidth: heroMaxW, width: '100%', alignSelf: 'center' }}>
             <View style={[s.headerRow, { paddingTop: insets.top + 10, paddingHorizontal: hPad }]}>
               <View style={{ flex: 1 }}>
-                <Text style={[s.greeting, { fontSize: greetingFs }]}>
-                  {greeting} <Text>🧡</Text>
-                </Text>
-                <Text style={[s.userName, { fontSize: nameFs }]} numberOfLines={1}>
-                  {greetingName}
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.3 }}>
+                  Kido
                 </Text>
               </View>
 
-              <TouchableOpacity
-                style={s.iconBtn}
-                onPress={() => router.push('/notifications')}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-              >
-                <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
-                {!isVisitor && unreadCount > 0 ? (
-                  <View style={s.bellBadge}>
-                    <Text style={s.bellBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                  </View>
-                ) : null}
-              </TouchableOpacity>
+              {!isVisitor && (
+                <TouchableOpacity
+                  style={s.iconBtn}
+                  onPress={() => router.push('/notifications')}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+                >
+                  <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+                  {unreadCount > 0 ? (
+                    <View style={s.bellBadge}>
+                      <Text style={s.bellBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              )}
 
-              <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
-                <Image source={{ uri: photoUri }} style={s.avatarSm} contentFit="cover" transition={200} />
-              </TouchableOpacity>
+              {!isVisitor && (
+                <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} activeOpacity={0.8}>
+                  <Image source={{ uri: photoUri }} style={s.avatarSm} contentFit="cover" transition={200} />
+                </TouchableOpacity>
+              )}
             </View>
 
-            <Pressable
-              style={[s.searchBar, { marginHorizontal: hPad, marginTop: isDesktop ? 24 : 18 }]}
-              onPress={() => router.push('/(tabs)/search')}
-              accessibilityRole="search"
-            >
-              <Ionicons name="search" size={18} color="#9CA3AF" />
-              <Text style={s.searchPlaceholder}>Search babysitters near you...</Text>
-              <View style={s.searchAction}>
-                <Ionicons name="options-outline" size={18} color="#FFFFFF" />
-              </View>
-            </Pressable>
+            {/* Improved Hero Greeting */}
+            <View style={{ marginHorizontal: hPad, marginTop: isDesktop ? 20 : 14, marginBottom: 4 }}>
+              {isVisitor ? (
+                <>
+                  <Text style={{ fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 }}>
+                    Find trusted babysitters
+                  </Text>
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 16, lineHeight: 19 }}>
+                    Verified profiles · Real reviews · Book in minutes
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+                      onPress={() => router.push('/register')}
+                      activeOpacity={0.88}
+                    >
+                      <Text style={{ color: Colors.light.primary, fontSize: 14, fontWeight: '700' }}>Sign Up Free</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 12, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }}
+                      onPress={() => router.push('/login')}
+                      activeOpacity={0.88}
+                    >
+                      <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Log In</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginBottom: 2 }}>
+                    {greeting}, {greetingName.split(' ')[0]}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', marginBottom: 16 }}>
+                    {availableCount > 0
+                      ? `${availableCount} sitter${availableCount !== 1 ? 's' : ''} available near you`
+                      : 'Find your perfect babysitter'}
+                  </Text>
+                  <TouchableOpacity
+                    style={{ alignSelf: 'flex-start', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 18, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                    onPress={() => router.push('/(tabs)/search')}
+                    activeOpacity={0.88}
+                  >
+                    <Ionicons name="search" size={15} color={Colors.light.primary} />
+                    <Text style={{ color: Colors.light.primary, fontSize: 14, fontWeight: '700' }}>Find a Babysitter</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
         </View>
 
@@ -656,8 +700,6 @@ const s = StyleSheet.create({
     paddingBottom: 6,
     gap: 12,
   },
-  greeting: { color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
-  userName:  { fontWeight: '800', color: '#FFFFFF', marginTop: 2 },
   iconBtn: {
     width: 46, height: 46, borderRadius: 15,
     backgroundColor: 'rgba(255,255,255,0.18)',
@@ -674,21 +716,6 @@ const s = StyleSheet.create({
   avatarSm: {
     width: 46, height: 46, borderRadius: 23,
     borderWidth: 2, borderColor: 'rgba(255,255,255,0.55)',
-  },
-
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16, height: 56,
-    paddingHorizontal: 14, gap: 10,
-    shadowColor: '#000', shadowOpacity: 0.13, shadowRadius: 16, shadowOffset: { width: 0, height: 7 },
-    elevation: 5,
-  },
-  searchPlaceholder: { flex: 1, color: '#9CA3AF', fontSize: 14 },
-  searchAction: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: Colors.light.primary,
-    alignItems: 'center', justifyContent: 'center',
   },
 
   promo: {

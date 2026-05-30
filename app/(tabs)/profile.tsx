@@ -71,80 +71,55 @@ export default function ProfileScreen() {
   // ── Visitor Profile ──────────────────────────────────────────────
   if (isVisitor) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#F5F6F8', paddingTop: insets.top }}>
-        <ScrollView 
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-        >
-          {/* Guest avatar + CTA */}
-          <View style={{
-            backgroundColor: Colors.light.primary, 
-            paddingTop: 32, 
-            paddingBottom: 40,
-            alignItems: 'center', 
-            paddingHorizontal: 24,
-          }}>
-            <View style={{
-              width: 72, height: 72, borderRadius: 36,
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              alignItems: 'center', justifyContent: 'center', marginBottom: 12,
-            }}>
-              <Ionicons name="person-outline" size={36} color="#FFFFFF" />
+      <View style={{ flex: 1, backgroundColor: '#F8F9FA', paddingTop: insets.top }}>
+        {/* Header */}
+        <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827' }}>Profile</Text>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}>
+          {/* Guest avatar */}
+          <View style={{ alignItems: 'center', marginBottom: 28 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#E6F4F5', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+              <Ionicons name="person-outline" size={36} color="#0F766E" />
             </View>
-            <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 4 }}>
-              Visiteur
-            </Text>
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
-              Créez un compte pour accéder à toutes les fonctionnalités
-            </Text>
-            <TouchableOpacity
-              onPress={() => router.push('/register')}
-              style={{
-                backgroundColor: '#FFFFFF', borderRadius: 24,
-                paddingHorizontal: 28, paddingVertical: 12, marginBottom: 10, 
-                width: '100%', alignItems: 'center',
-              }}
-            >
-              <Text style={{ color: Colors.light.primary, fontWeight: '700', fontSize: 15 }}>
-                S'inscrire gratuitement
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/login')}
-              style={{
-                borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', borderRadius: 24,
-                paddingHorizontal: 28, paddingVertical: 12, width: '100%', alignItems: 'center',
-              }}
-            >
-              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 15 }}>Se connecter</Text>
-            </TouchableOpacity>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 }}>Guest User</Text>
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>You are browsing as a visitor</Text>
           </View>
 
-          {/* Info sections */}
+          {/* CTAs */}
+          <TouchableOpacity
+            style={{ backgroundColor: '#0F766E', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginBottom: 12 }}
+            onPress={() => router.push('/register')}
+            activeOpacity={0.88}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Create an Account</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ backgroundColor: '#FFFFFF', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginBottom: 28, borderWidth: 1, borderColor: '#E5E7EB' }}
+            onPress={() => router.push('/login')}
+            activeOpacity={0.88}
+          >
+            <Text style={{ color: '#0F766E', fontSize: 15, fontWeight: '700' }}>Log In</Text>
+          </TouchableOpacity>
+
+          {/* Info tiles */}
           {[
-            { icon: 'information-circle-outline', label: 'À propos de Kido', onPress: () => {} },
-            { icon: 'cash-outline', label: 'Tarifs', onPress: () => {} },
-            { icon: 'help-circle-outline', label: 'Comment ça marche', onPress: () => {} },
-            { icon: 'document-text-outline', label: 'Conditions d\'utilisation', onPress: () => {} },
-            { icon: 'shield-checkmark-outline', label: 'Politique de confidentialité', onPress: () => {} },
+            { icon: 'pricetag-outline', label: 'Rates & Pricing', onPress: () => {} },
+            { icon: 'help-circle-outline', label: 'How Kido Works', onPress: () => {} },
+            { icon: 'document-text-outline', label: 'Terms of Service', onPress: () => {} },
+            { icon: 'lock-closed-outline', label: 'Privacy Policy', onPress: () => {} },
           ].map(item => (
             <TouchableOpacity
               key={item.label}
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: '#F0F0F0' }}
               onPress={item.onPress}
-              style={{
-                flexDirection: 'row', alignItems: 'center', gap: 14,
-                backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 10,
-                borderRadius: 14, padding: 16,
-                borderWidth: 1, borderColor: '#F0F0F0',
-              }}
+              activeOpacity={0.8}
             >
-              <View style={{
-                width: 36, height: 36, borderRadius: 10,
-                backgroundColor: '#E6F4F5', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Ionicons name={item.icon as any} size={18} color={Colors.light.primary} />
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#E6F4F5', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                <Ionicons name={item.icon as any} size={18} color="#0F766E" />
               </View>
-              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#111827' }}>{item.label}</Text>
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#374151' }}>{item.label}</Text>
               <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
             </TouchableOpacity>
           ))}
