@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import * as Location from 'expo-location';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 export interface MapLocation {
   latitude: number;
@@ -12,9 +12,11 @@ export interface MapLocation {
 interface MapComponentProps {
   markers?: MapLocation[];
   center?: MapLocation;
+  userLocationOverride?: MapLocation | null;  // ← ADD: explicit user dot position
   onMarkerPress?: (marker: MapLocation) => void;
   onLocationPress?: (location: MapLocation) => void;
   showUserLocation?: boolean;
+  zoom?: number;                               // ← ADD: leaflet zoom level
   height?: number | string;
   style?: any;
 }
@@ -31,26 +33,26 @@ try {
 
 // ─── Build Leaflet HTML map ────────────────────────────────────────────────
 
+// ✅ REPLACE buildLeafletHTML — now accepts separate mapCenter, userDot, and zoom
 function buildLeafletHTML(
-  center: MapLocation,
+  mapCenter: MapLocation,
+  userDot: MapLocation | null,
   markers: MapLocation[],
-  showUserLocation: boolean,
+  zoom: number,
 ): string {
   const markersJS = markers
-    .map(
-      (m) => `
+    .map((m) => `
       L.circleMarker([${m.latitude}, ${m.longitude}], {
         radius: 8, color: '#FFFFFF', weight: 2,
         fillColor: '#0F766E', fillOpacity: 1
-      }).addTo(map).bindPopup(${JSON.stringify(m.title ?? '')});`,
-    )
+      }).addTo(map).bindPopup(${JSON.stringify(m.title ?? '')});`)
     .join('\n');
 
-  const userLocationJS = showUserLocation
-    ? `L.circleMarker([${center.latitude}, ${center.longitude}], {
+  const userDotJS = userDot
+    ? `L.circleMarker([${userDot.latitude}, ${userDot.longitude}], {
         radius: 10, color: '#FFFFFF', weight: 2,
         fillColor: '#EC4899', fillOpacity: 1
-      }).addTo(map);`
+      }).addTo(map).bindTooltip('You', { permanent: false });`
     : '';
 
   return `<!DOCTYPE html>
@@ -68,15 +70,10 @@ function buildLeafletHTML(
   <div id="map"></div>
   <script>
     var map = L.map('map', { zoomControl: true, attributionControl: false })
-      .setView([${center.latitude}, ${center.longitude}], 14);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
-    }).addTo(map);
-
+      .setView([${mapCenter.latitude}, ${mapCenter.longitude}], ${zoom});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     ${markersJS}
-    ${userLocationJS}
-
+    ${userDotJS}
     map.on('click', function(e) {
       window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
         JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng })
@@ -151,14 +148,16 @@ function MapPlaceholder({
 export function Map({
   markers = [],
   center,
+  userLocationOverride,
   onMarkerPress,
   onLocationPress,
   showUserLocation = true,
+  zoom = 13,             // ← default zoom 13 (city level)
   height = 300,
   style,
 }: MapComponentProps) {
   const effectiveCenter = center ?? DEFAULT_CENTER;
-  const [userLocation, setUserLocation] = useState<MapLocation | null>(null);
+  const [deviceLocation, setDeviceLocation] = useState<MapLocation | null>(null);
   const webViewRef = useRef<any>(null);
 
   useEffect(() => {
@@ -169,7 +168,7 @@ export function Map({
         const loc = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });
-        setUserLocation({
+        setDeviceLocation({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
         });
@@ -177,7 +176,6 @@ export function Map({
     })();
   }, []);
 
-  // No WebView (web platform) → show placeholder
   if (!WebView) {
     return (
       <MapPlaceholder
@@ -190,8 +188,15 @@ export function Map({
     );
   }
 
-  const mapCenter = userLocation && showUserLocation ? userLocation : effectiveCenter;
-  const html = buildLeafletHTML(mapCenter, markers, showUserLocation);
+  // Map VIEW always centers on `center` prop (searched city or default)
+  const mapViewCenter = effectiveCenter;
+
+  // Pink dot: explicit override > device GPS > null (hidden)
+  const userDot = showUserLocation
+    ? (userLocationOverride ?? deviceLocation ?? null)
+    : null;
+
+  const html = buildLeafletHTML(mapViewCenter, userDot, markers, zoom);
 
   return (
     <View style={[{ height }, style]}>

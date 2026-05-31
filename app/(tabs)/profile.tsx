@@ -80,8 +80,8 @@ export default function ProfileScreen() {
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}>
           {/* Guest avatar */}
           <View style={{ alignItems: 'center', marginBottom: 28 }}>
-            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#E6F4F5', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-              <Ionicons name="person-outline" size={36} color="#0F766E" />
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.light.primaryLight, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+              <Ionicons name="person-outline" size={36} color={Colors.light.primary} />
             </View>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 4 }}>Guest User</Text>
             <Text style={{ fontSize: 13, color: '#6B7280' }}>You are browsing as a visitor</Text>
@@ -89,7 +89,7 @@ export default function ProfileScreen() {
 
           {/* CTAs */}
           <TouchableOpacity
-            style={{ backgroundColor: '#0F766E', borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginBottom: 12 }}
+            style={{ backgroundColor: Colors.light.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginBottom: 12 }}
             onPress={() => router.push('/register')}
             activeOpacity={0.88}
           >
@@ -100,7 +100,7 @@ export default function ProfileScreen() {
             onPress={() => router.push('/login')}
             activeOpacity={0.88}
           >
-            <Text style={{ color: '#0F766E', fontSize: 15, fontWeight: '700' }}>Log In</Text>
+            <Text style={{ color: Colors.light.primary, fontSize: 15, fontWeight: '700' }}>Log In</Text>
           </TouchableOpacity>
 
           {/* Info tiles */}
@@ -116,8 +116,8 @@ export default function ProfileScreen() {
               onPress={item.onPress}
               activeOpacity={0.8}
             >
-              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#E6F4F5', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                <Ionicons name={item.icon as any} size={18} color="#0F766E" />
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.light.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                <Ionicons name={item.icon as any} size={18} color={Colors.light.primary} />
               </View>
               <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: '#374151' }}>{item.label}</Text>
               <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
@@ -187,6 +187,8 @@ export default function ProfileScreen() {
   return (
     <View style={[s.page, { paddingTop: insets.top, alignItems: 'center' }]}>
       <ScrollView
+        bounces={false}
+        overScrollMode="never"
         style={{ width: '100%', maxWidth: contentMaxWidth }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
@@ -240,7 +242,7 @@ export default function ProfileScreen() {
           <Text style={s.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
-        <Text style={s.version}>Kido v1.0.0</Text>
+        <Text style={s.version}>Kido v4.6.3</Text>
       </ScrollView>
     </View>
   );

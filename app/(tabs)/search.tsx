@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
-  Modal, Pressable,
+  Keyboard,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,7 +20,7 @@ import { Map } from '../../components/ui/Map';
 import { VisitorBanner } from '../../components/ui/VisitorBanner';
 import { Colors } from '../../constants/Colors';
 import { applyRealDistances, fetchSitters } from '../../lib/api/sitters';
-import { getCurrentLocation } from '../../lib/location-service';
+import { calculateDistance, getCurrentLocation } from '../../lib/location-service';
 import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
 import { useResponsive } from '../../lib/responsive';
 import { useAuth } from '../../providers/auth-provider';
@@ -25,6 +28,106 @@ import { useFavoritesStore } from '../../store/favorites-store';
 
 type SortKey = 'relevance' | 'distance' | 'rating' | 'price';
 type ViewMode = 'list' | 'map';
+
+type GeoSuggestion = {
+  name: string;
+  displayName: string;
+  lat: number;
+  lon: number;
+  boundingBox: [number, number, number, number];
+};
+
+// Clean Tifinagh (Amazigh) characters
+function cleanAmazigh(text: string): string {
+  return text.replace(/[\u2D30-\u2D7F]+/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+// ── Mostaganem instant suggestions (no network needed) ──
+const MOSTAGANEM_AREAS: GeoSuggestion[] = [
+  { name: 'Mostaganem',       displayName: 'Mostaganem, Wilaya de Mostaganem, Algérie',   lat: 35.9317, lon: 0.0892, boundingBox: [35.88, 35.97, 0.03, 0.16] },
+  { name: 'Tijditt',          displayName: 'Tijditt, Mostaganem, Algérie',                 lat: 35.9278, lon: 0.0978, boundingBox: [35.91, 35.95, 0.07, 0.13] },
+  { name: 'Salamandre',       displayName: 'Salamandre, Mostaganem, Algérie',              lat: 35.9200, lon: 0.0760, boundingBox: [35.90, 35.94, 0.05, 0.11] },
+  { name: 'Stidia',           displayName: 'Stidia, Mostaganem, Algérie',                  lat: 35.8568, lon: 0.0292, boundingBox: [35.83, 35.88, 0.00, 0.07] },
+  { name: 'Mazagran',         displayName: 'Mazagran, Mostaganem, Algérie',                lat: 35.9256, lon: 0.0583, boundingBox: [35.90, 35.95, 0.03, 0.09] },
+  { name: 'Mesra',            displayName: 'Mesra, Mostaganem, Algérie',                   lat: 35.8892, lon: 0.1156, boundingBox: [35.86, 35.92, 0.08, 0.16] },
+  { name: 'Aïn Tédelès',      displayName: 'Aïn Tédelès, Mostaganem, Algérie',            lat: 36.0050, lon: 0.3067, boundingBox: [35.97, 36.04, 0.27, 0.35] },
+  { name: 'Bouguirat',        displayName: 'Bouguirat, Mostaganem, Algérie',               lat: 36.0569, lon: 0.0833, boundingBox: [36.02, 36.10, 0.04, 0.13] },
+  { name: 'Hassi Mamèche',    displayName: 'Hassi Mamèche, Mostaganem, Algérie',           lat: 35.9439, lon: 0.2442, boundingBox: [35.91, 35.98, 0.20, 0.29] },
+  { name: 'Sidi Ali',         displayName: 'Sidi Ali, Mostaganem, Algérie',                lat: 36.1031, lon: 0.4539, boundingBox: [36.07, 36.14, 0.41, 0.50] },
+  { name: 'Aïn Nouissy',      displayName: 'Aïn Nouissy, Mostaganem, Algérie',            lat: 35.9208, lon: 0.0369, boundingBox: [35.89, 35.95, 0.00, 0.08] },
+  { name: 'Sayada',           displayName: 'Sayada, Mostaganem, Algérie',                  lat: 36.0808, lon: 0.1467, boundingBox: [36.05, 36.11, 0.11, 0.19] },
+  { name: 'Mansourah',        displayName: 'Mansourah, Mostaganem, Algérie',               lat: 36.0231, lon: 0.0594, boundingBox: [35.99, 36.06, 0.02, 0.10] },
+  { name: 'Kheireddine',      displayName: 'Kheireddine, Mostaganem, Algérie',             lat: 36.0522, lon: 0.2047, boundingBox: [36.02, 36.09, 0.16, 0.25] },
+  { name: 'Sirat',            displayName: 'Sirat, Mostaganem, Algérie',                   lat: 35.8808, lon: 0.1853, boundingBox: [35.85, 35.92, 0.14, 0.23] },
+  { name: 'Fornaka',          displayName: 'Fornaka, Mostaganem, Algérie',                 lat: 36.0189, lon: 0.3786, boundingBox: [35.99, 36.05, 0.34, 0.42] },
+  { name: 'Souaflia',         displayName: 'Souaflia, Mostaganem, Algérie',                lat: 36.1144, lon: 0.2583, boundingBox: [36.08, 36.15, 0.22, 0.30] },
+  { name: 'Tazgaït',          displayName: 'Tazgaït, Mostaganem, Algérie',                lat: 35.9731, lon: 0.1458, boundingBox: [35.94, 36.01, 0.10, 0.19] },
+  { name: 'Nekmaria',         displayName: 'Nekmaria, Mostaganem, Algérie',                lat: 36.0369, lon: 0.4786, boundingBox: [36.01, 36.07, 0.44, 0.52] },
+  { name: 'Achaacha',         displayName: 'Achaacha, Mostaganem, Algérie',                lat: 36.1847, lon: 0.1894, boundingBox: [36.15, 36.22, 0.14, 0.24] },
+  { name: 'Touahria',         displayName: 'Touahria, Mostaganem, Algérie',                lat: 35.9058, lon: 0.2417, boundingBox: [35.87, 35.94, 0.19, 0.29] },
+  { name: 'Aïn Sidi Cherif',  displayName: 'Aïn Sidi Cherif, Mostaganem, Algérie',        lat: 36.0783, lon: 0.0242, boundingBox: [36.04, 36.11, -0.02, 0.07] },
+  { name: 'Khadra',           displayName: 'Khadra, Mostaganem, Algérie',                  lat: 35.9892, lon: 0.0203, boundingBox: [35.96, 36.02, -0.02, 0.07] },
+  { name: 'Ouled Maallah',    displayName: 'Ouled Maallah, Mostaganem, Algérie',           lat: 35.8253, lon: 0.2094, boundingBox: [35.79, 35.86, 0.16, 0.26] },
+  { name: 'Oued El Kheir',    displayName: 'Oued El Kheir, Mostaganem, Algérie',           lat: 35.9592, lon: 0.1739, boundingBox: [35.93, 35.99, 0.14, 0.21] },
+];
+
+// ── Nominatim helper functions ──
+async function fetchGeoSuggestions(query: string): Promise<GeoSuggestion[]> {
+  if (!query || query.trim().length < 2) return [];
+
+  const q = query.trim().toLowerCase();
+
+  // Instant local matches for Mostaganem areas
+  const localMatches = MOSTAGANEM_AREAS.filter(a =>
+    a.name.toLowerCase().includes(q) || a.displayName.toLowerCase().includes(q)
+  ).slice(0, 3);
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'KidoApp/1.0 (kido.dz)' },
+    });
+    const data = await res.json();
+
+    const nominatimResults: GeoSuggestion[] = (data ?? []).map((item: any) => ({
+      name: cleanAmazigh(
+        item.address?.city ?? item.address?.town ?? item.address?.village ??
+        item.address?.suburb ?? item.address?.neighbourhood ??
+        item.address?.road ?? item.name ?? query
+      ),
+      displayName: cleanAmazigh(item.display_name),
+      lat: parseFloat(item.lat),
+      lon: parseFloat(item.lon),
+      boundingBox: item.boundingbox.map(parseFloat) as [number, number, number, number],
+    }));
+
+    // Merge local + Nominatim (deduplicate by proximity)
+    const merged = [...localMatches];
+    for (const nr of nominatimResults) {
+      const isDupe = merged.some(m => 
+        Math.abs(m.lat - nr.lat) < 0.01 && Math.abs(m.lon - nr.lon) < 0.01
+      );
+      if (!isDupe) merged.push(nr);
+    }
+    return merged.slice(0, 6);
+  } catch {
+    return localMatches; // offline fallback
+  }
+}
+
+function radiusFromBBox(bb: [number, number, number, number]): number {
+  const [minLat, maxLat, minLon, maxLon] = bb;
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLon = (minLon + maxLon) / 2;
+  const cornerDist = calculateDistance(centerLat, centerLon, maxLat, maxLon);
+  return Math.max(cornerDist, 1);
+}
+
+function zoomFromBBox(bb: [number, number, number, number]): number {
+  const lonDelta = Math.abs(bb[3] - bb[2]);
+  const zoom = Math.round(Math.log2(360 / lonDelta));
+  return Math.min(Math.max(zoom - 1, 9), 17);
+}
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
@@ -39,6 +142,22 @@ export default function SearchScreen() {
   const [availableNowOnly, setAvailableNowOnly] = useState(false);
   const [sitters, setSitters] = useState<MockSitter[]>(MOCK_SITTERS);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Enhanced search center
+  const [searchCenter, setSearchCenter] = useState<{
+    lat: number; lon: number; name: string;
+    boundingBox: [number, number, number, number];
+    radiusKm: number;
+  } | null>(null);
+
+  const [suggestions, setSuggestions] = useState<GeoSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [locationAttempted, setLocationAttempted] = useState(false);
+  const [noLocationFound, setNoLocationFound] = useState(false); // ← New
+
+  const pendingSubmitRef = useRef(false);
 
   // Filter state
   const [minRating, setMinRating] = useState(0);
@@ -55,10 +174,12 @@ export default function SearchScreen() {
   const gridCols = isDesktop ? 3 : isTablet ? 2 : 1;
 
   const { height: SCREEN_H } = Dimensions.get('window');
-  const NEAR_ME_KM = 20;
-  const baseMapHeight = isDesktop ? 280 : isTablet ? 220 : Math.round(SCREEN_H * 0.35);
 
-  const favoriteIds   = useFavoritesStore(s => s.ids);
+  const listMapHeight = Math.round(SCREEN_H * 0.38);
+  const fullMapHeight = SCREEN_H - insets.top - 68;
+  const mapHeight = mode === 'map' ? fullMapHeight : listMapHeight;
+
+  const favoriteIds = useFavoritesStore(s => s.ids);
   const toggleFavorite = useFavoritesStore(s => s.toggle);
   const hydrateFavorites = useFavoritesStore(s => s.hydrate);
 
@@ -70,25 +191,69 @@ export default function SearchScreen() {
       try {
         const loc = await getCurrentLocation();
         if (loc) {
+          setUserLocation({ lat: loc.latitude, lon: loc.longitude });
           setSitters(applyRealDistances(list, loc.latitude, loc.longitude));
         }
       } catch {
-        // Location denied or unavailable — keep mock/default distances
+        // Location denied or unavailable
+      } finally {
+        setLocationAttempted(true);
       }
     });
   }, []);
+
+  // Debounced Nominatim search
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setNoLocationFound(false);
+      return;
+    }
+    if (searchCenter?.name.toLowerCase() === q.toLowerCase()) return;
+
+    setLoadingSuggestions(true);
+    const timer = setTimeout(async () => {
+      const results = await fetchGeoSuggestions(q);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+      setLoadingSuggestions(false);
+      setNoLocationFound(results.length === 0);
+
+      if (pendingSubmitRef.current && results.length > 0) {
+        pendingSubmitRef.current = false;
+        selectCity(results[0]);
+      } else if (pendingSubmitRef.current && results.length === 0) {
+        pendingSubmitRef.current = false;
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const selectCity = (suggestion: GeoSuggestion) => {
+    Keyboard.dismiss();
+    pendingSubmitRef.current = false;
+    setNoLocationFound(false);
+    const radiusKm = radiusFromBBox(suggestion.boundingBox);
+    setSearchCenter({
+      lat: suggestion.lat,
+      lon: suggestion.lon,
+      name: suggestion.name,
+      boundingBox: suggestion.boundingBox,
+      radiusKm,
+    });
+    setQuery(suggestion.name);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const activeFilterCount =
     (verifiedOnly ? 1 : 0) + (availableNowOnly ? 1 : 0) +
     (minRating > 0 ? 1 : 0) + (maxPrice > 0 ? 1 : 0) + (maxDistanceKm > 0 ? 1 : 0);
 
-  const hasActiveSearch =
-    query.trim() !== '' ||
-    verifiedOnly ||
-    availableNowOnly ||
-    minRating > 0 ||
-    maxPrice > 0 ||
-    maxDistanceKm > 0;
+  const hasActiveSearch = searchCenter !== null || noLocationFound;
 
   const openFilters = () => {
     setPendingMinRating(minRating);
@@ -109,46 +274,42 @@ export default function SearchScreen() {
   };
 
   const clearAllFilters = () => {
-    setPendingMinRating(0); 
-    setPendingMaxPrice(0); 
+    setPendingMinRating(0);
+    setPendingMaxPrice(0);
     setPendingMaxDist(0);
-    setPendingVerified(false); 
+    setPendingVerified(false);
     setPendingAvailNow(false);
   };
 
+  // Dynamic radius results
   const results = useMemo<MockSitter[]>(() => {
-    if (!query.trim() && !verifiedOnly && !availableNowOnly && minRating === 0 && maxPrice === 0 && maxDistanceKm === 0) {
-      return [];
-    }
+    if (noLocationFound) return [];
+    if (!searchCenter) return [];
 
-    const q = query.trim().toLowerCase();
-    const list = sitters.filter(s => {
-      if (q) {
-        const fields = [
-          s.neighborhood,
-          s.location,
-        ].map(x => (x ?? '').toLowerCase());
-        if (!fields.some(f => f.includes(q))) return false;
-      }
-      if (verifiedOnly && !s.identityVerified) return false;
-      if (availableNowOnly && !s.availableNow) return false;
-      if (minRating > 0 && s.averageRating < minRating) return false;
-      if (maxPrice > 0 && s.hourlyRate > maxPrice) return false;
-
-      const distCap = maxDistanceKm > 0 ? maxDistanceKm : NEAR_ME_KM * 5;
-      if (s.distanceKm > distCap) return false;
-
-      return true;
-    });
-    return [...list].sort((a, b) => {
-      switch (sort) {
-        case 'distance': return a.distanceKm - b.distanceKm;
-        case 'rating':   return b.averageRating - a.averageRating;
-        case 'price':    return a.hourlyRate - b.hourlyRate;
-        default:         return 0;
-      }
-    });
-  }, [query, sort, verifiedOnly, availableNowOnly, minRating, maxPrice, maxDistanceKm, sitters]);
+    return sitters
+      .map(s => ({
+        ...s,
+        distanceKm: Math.round(
+          calculateDistance(searchCenter.lat, searchCenter.lon, s.latitude, s.longitude) * 10
+        ) / 10,
+      }))
+      .filter(s => {
+        if (s.distanceKm > searchCenter.radiusKm) return false;
+        if (verifiedOnly && !s.identityVerified) return false;
+        if (availableNowOnly && !s.availableNow) return false;
+        if (minRating > 0 && s.averageRating < minRating) return false;
+        if (maxPrice > 0 && s.hourlyRate > maxPrice) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        switch (sort) {
+          case 'distance': return a.distanceKm - b.distanceKm;
+          case 'rating':   return b.averageRating - a.averageRating;
+          case 'price':    return a.hourlyRate - b.hourlyRate;
+          default:         return a.distanceKm - b.distanceKm;
+        }
+      });
+  }, [sitters, searchCenter, noLocationFound, sort, verifiedOnly, availableNowOnly, minRating, maxPrice]);
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
@@ -166,84 +327,177 @@ export default function SearchScreen() {
             style={s.searchInput}
             accessibilityLabel="Search"
             returnKeyType="search"
+            onSubmitEditing={() => {
+              if (suggestions.length > 0) {
+                selectCity(suggestions[0]);
+              } else {
+                pendingSubmitRef.current = true;
+              }
+            }}
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+            <TouchableOpacity 
+              onPress={() => { 
+                setQuery(''); 
+                setSuggestions([]);
+                setShowSuggestions(false);
+              }} 
+              hitSlop={8}
+            >
               <Ionicons name="close-circle" size={16} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity
-          style={s.filterBtn}
-          activeOpacity={0.8}
-          onPress={openFilters}
-          accessibilityRole="button"
-          accessibilityLabel={`Filters, ${activeFilterCount} active`}
-        >
-          <Ionicons name="options" size={18} color="#FFFFFF" />
-          {activeFilterCount > 0 ? (
-            <View style={s.filterBadge}>
-              <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
-            </View>
-          ) : null}
-        </TouchableOpacity>
+
+        {/* Filter button visible only in list mode */}
+        {mode === 'list' && (
+          <TouchableOpacity
+            style={s.filterBtn}
+            activeOpacity={0.8}
+            onPress={openFilters}
+            accessibilityRole="button"
+            accessibilityLabel={`Filters, ${activeFilterCount} active`}
+          >
+            <Ionicons name="options" size={18} color="#FFFFFF" />
+            {activeFilterCount > 0 ? (
+              <View style={s.filterBadge}>
+                <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Map — outside ScrollView to prevent zoom/scroll conflicts */}
-      <View style={mode === 'map' ? s.mapExpanded : [s.map, { height: baseMapHeight }]}>
-        <Map
-          markers={results.map(s => ({
-            latitude: s.latitude,
-            longitude: s.longitude,
-            title: `${s.firstName} ${s.lastName}`,
-            description: `${s.hourlyRate} DZD/hr`,
-          }))}
-          center={{ latitude: 36.7372, longitude: 3.0869 }}
-          showUserLocation
-          height={mode === 'map' ? Math.round(SCREEN_H * 0.72) : baseMapHeight}
-          onMarkerPress={(marker) => {
-            const sitter = results.find(s => `${s.firstName} ${s.lastName}` === marker.title);
-            if (sitter) {
-              router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } });
-            }
-          }}
-        />
+      {/* Nominatim suggestions dropdown */}
+      {showSuggestions && (
+        <View style={s.suggestionsBox}>
+          {loadingSuggestions ? (
+            <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={Colors.light.primary} />
+            </View>
+          ) : suggestions.map((item, index) => (
+            <TouchableOpacity
+              key={`${item.lat}-${item.lon}`}
+              onPress={() => selectCity(item)}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                paddingHorizontal: 16, paddingVertical: 13,
+                borderBottomWidth: index < suggestions.length - 1 ? 1 : 0,
+                borderBottomColor: '#F5F5F5',
+              }}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="location-outline" size={16} color={Colors.light.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>
+                  {item.displayName}
+                </Text>
+              </View>
+              <Ionicons name="arrow-forward" size={14} color="#D1D5DB" />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
-        <View style={s.mapPill}>
-          <Ionicons name="location" size={14} color={Colors.light.primary} />
-          <Text style={s.mapPillText}>
-            {hasActiveSearch
-              ? `${results.length} résultat${results.length !== 1 ? 's' : ''} à proximité`
-              : 'Recherchez une ville'}
+      {/* Map with loading state until GPS attempt completes */}
+      {(userLocation || searchCenter || locationAttempted) ? (
+        <View style={[
+          mode === 'map' ? s.mapExpanded : [s.map, { height: mapHeight }],
+          { marginTop: 6 }
+        ]}>
+          <Map
+            markers={sitters.map(s => ({
+              latitude: s.latitude,
+              longitude: s.longitude,
+              title: `${s.firstName} ${s.lastName}`,
+              description: `${s.hourlyRate} DZD/hr`,
+              opacity: hasActiveSearch
+                ? (results.some(r => r.id === s.id) ? 1 : 0.3)
+                : 1,
+            }))}
+            center={
+              searchCenter
+                ? { latitude: searchCenter.lat, longitude: searchCenter.lon }
+                : userLocation
+                  ? { latitude: userLocation.lat, longitude: userLocation.lon }
+                  : { latitude: 36.7372, longitude: 3.0869 }
+            }
+            showUserLocation={true}
+            zoom={searchCenter ? zoomFromBBox(searchCenter.boundingBox) : 12}
+            height={mapHeight}
+            onMarkerPress={(marker) => {
+              const sitter = sitters.find(s => `${s.firstName} ${s.lastName}` === marker.title);
+              if (sitter) {
+                router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } });
+              }
+            }}
+          />
+
+          {/* Filter button overlaid on map (only in map mode) */}
+          {mode === 'map' && (
+            <TouchableOpacity
+              style={s.mapFilterOverlay}
+              onPress={openFilters}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ''}`}
+            >
+              <Ionicons name="options" size={18} color="#FFFFFF" />
+              {activeFilterCount > 0 && (
+                <View style={s.filterBadge}>
+                  <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Unified Map Bottom Bar */}
+          <View style={s.mapBottomBar}>
+            <View style={s.mapPill}>
+              <Ionicons name="location" size={14} color={Colors.light.primary} />
+              <Text style={s.mapPillText} numberOfLines={1}>
+                {hasActiveSearch
+                  ? `${results.length} résultat${results.length !== 1 ? 's' : ''} à proximité`
+                  : 'Recherchez une ville'}
+              </Text>
+            </View>
+
+            <View style={s.viewToggle}>
+              <TouchableOpacity
+                style={[s.viewToggleItem, mode === 'list' && s.viewToggleActive]}
+                onPress={() => setMode('list')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="List view"
+              >
+                <Ionicons name="list" size={14} color={mode === 'list' ? '#FFFFFF' : Colors.light.text} />
+                <Text style={[s.viewToggleText, mode === 'list' && { color: '#FFFFFF' }]}>List</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.viewToggleItem, mode === 'map' && s.viewToggleActive]}
+                onPress={() => setMode('map')}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Map view"
+              >
+                <Ionicons name="map" size={14} color={mode === 'map' ? '#FFFFFF' : Colors.light.text} />
+                <Text style={[s.viewToggleText, mode === 'map' && { color: '#FFFFFF' }]}>Map</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ) : (
+        /* Loading state while waiting for GPS */
+        <View style={[s.map, { height: mapHeight, backgroundColor: '#d4ecea', alignItems: 'center', justifyContent: 'center', marginTop: 6 }]}>
+          <ActivityIndicator color="#0F766E" size="small" />
+          <Text style={{ color: '#0F766E', fontSize: 12, fontWeight: '600', marginTop: 8 }}>
+            Getting your location...
           </Text>
         </View>
-
-        {/* View mode toggle */}
-        <View style={s.viewToggle}>
-          <TouchableOpacity
-            style={[s.viewToggleItem, mode === 'list' && s.viewToggleActive]}
-            onPress={() => setMode('list')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="List view"
-            accessibilityState={{ selected: mode === 'list' }}
-          >
-            <Ionicons name="list" size={13} color={mode === 'list' ? '#FFFFFF' : Colors.light.text} />
-            <Text style={[s.viewToggleText, mode === 'list' && { color: '#FFFFFF' }]}>List</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.viewToggleItem, mode === 'map' && s.viewToggleActive]}
-            onPress={() => setMode('map')}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Map view"
-            accessibilityState={{ selected: mode === 'map' }}
-          >
-            <Ionicons name="map" size={13} color={mode === 'map' ? '#FFFFFF' : Colors.light.text} />
-            <Text style={[s.viewToggleText, mode === 'map' && { color: '#FFFFFF' }]}>Map</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      )}
 
       {/* List content — only shown when in list mode */}
       {mode === 'list' && (
@@ -253,7 +507,6 @@ export default function SearchScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Result count */}
           {hasActiveSearch && (
             <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
               <Text style={{ fontSize: 22, fontWeight: '800', color: '#0F172A', letterSpacing: -0.4 }}>
@@ -262,7 +515,6 @@ export default function SearchScreen() {
             </View>
           )}
 
-          {/* Sort chips */}
           {hasActiveSearch && (
             <ScrollView
               horizontal
@@ -285,7 +537,6 @@ export default function SearchScreen() {
             </ScrollView>
           )}
 
-          {/* Results or hint */}
           {hasActiveSearch ? (
             results.length === 0 ? (
               <View style={s.noResults}>
@@ -476,7 +727,7 @@ function RowCard({
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
             <Ionicons name="location-outline" size={11} color="#9CA3AF" />
-            <Text style={s.rowLocation}>Algiers, {sitter.neighborhood} · {sitter.distanceKm}km</Text>
+            <Text style={s.rowLocation}>{sitter.location} · {sitter.distanceKm}km</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
             {[1, 2, 3, 4, 5].map(i => (
@@ -539,7 +790,7 @@ function TinyChip({
 }
 
 const s = StyleSheet.create({
-  page: { flex: 1, backgroundColor: '#F5F6F8' },
+  page: { flex: 1, backgroundColor: '#FFFFFF' },
 
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -579,30 +830,81 @@ const s = StyleSheet.create({
   mapExpanded: {
     flex: 1,
     position: 'relative',
+    marginTop: 6,
+  },
+  mapFilterOverlay: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 13,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+  mapBottomBar: {
+    position: 'absolute',
+    bottom: 14,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   mapPill: {
-    position: 'absolute', bottom: 10, left: 10,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 22,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
+    flex: 1,
+    maxWidth: '60%',
   },
-  mapPillText: { fontSize: 12, color: Colors.light.text, fontWeight: '700' },
-
+  mapPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.text,
+    flexShrink: 1,
+  },
   viewToggle: {
-    position: 'absolute', bottom: 10, right: 10,
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: 999, padding: 2,
-    borderWidth: 1, borderColor: '#E5E7EB',
+    borderRadius: 22,
+    padding: 3,
+    gap: 2,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
   },
   viewToggleItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 20,
   },
   viewToggleActive: { backgroundColor: Colors.light.primary },
-  viewToggleText: { fontSize: 11, fontWeight: '700', color: Colors.light.text },
+  viewToggleText: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
+
+  suggestionsBox: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, elevation: 6,
+    zIndex: 20,
+    overflow: 'hidden',
+  },
 
   sortChip: {
     paddingHorizontal: 16,

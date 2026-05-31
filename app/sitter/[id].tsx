@@ -1,25 +1,25 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  StyleSheet,
   ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 
-import { MOCK_SITTERS, MOCK_REVIEWS, type MockSitter } from '../../lib/mock/sitters';
+import { LoginPromptModal } from '../../components/ui/LoginPromptModal';
+import { Map } from '../../components/ui/Map';
 import { fetchSitterById } from '../../lib/api/sitters';
 import { haptics } from '../../lib/haptics';
-import { Map } from '../../components/ui/Map';
+import { MOCK_REVIEWS, MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
 import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
 import { useAuth } from '../../providers/auth-provider';
-import { LoginPromptModal } from '../../components/ui/LoginPromptModal';
 
 /* ─── Design tokens ─── */
 const TEAL = '#0F6E56';
@@ -162,7 +162,7 @@ export default function SitterDetailScreen() {
           </Text>
           <View style={s.locationRow}>
             <Ionicons name="location" size={12} color={TEXT_MUTED} />
-            <Text style={s.location}>Algiers, {sitter.neighborhood}</Text>
+            <Text style={s.location}>{sitter.location}</Text>
           </View>
 
           <View style={s.starsRow}>
@@ -290,7 +290,7 @@ export default function SitterDetailScreen() {
                 />
               </View>
               <Text style={[s.aboutText, { marginTop: 12 }]}>
-                Available for bookings in Algiers, {sitter.neighborhood} area. Response time typically {sitter.responseMinutes} minutes.
+                Available for bookings in {sitter.location} area. Response time typically {sitter.responseMinutes} minutes.
               </Text>
             </>
           ) : null}

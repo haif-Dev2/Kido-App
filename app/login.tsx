@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { makeRedirectUri } from 'expo-auth-session';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -49,6 +50,18 @@ export default function LoginScreen() {
   const [signInError, setSignInError] = useState('');
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [isResendingConfirmation, setIsResendingConfirmation] = useState(false);
+
+  // Keyboard handling
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   const validateEmail = (emailStr: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr);
 
@@ -336,37 +349,50 @@ export default function LoginScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation with improved spacing */}
-      <View style={[styles.bottomNav, { 
-        paddingBottom: Math.max(insets.bottom + 16, 36) 
-      }]}>
+      {/* Bottom Navigation - Hidden when keyboard is visible */}
+      {!keyboardVisible && (
+        <View style={[styles.bottomNav, { 
+          paddingBottom: Math.max(insets.bottom + 16, 36) 
+        }]}>
 
-        {/* Sign Up row */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 16 }}>
-          <Text style={styles.bottomNavText}>Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => router.push('/register')}>
-            <Text style={styles.bottomNavLink}>Sign Up</Text>
+          {/* Visible separator */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 18 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
+            <View style={{ marginHorizontal: 14 }}>
+              <Text style={{ fontSize: 12, color: '#9CA3AF', fontWeight: '600', letterSpacing: 0.5 }}>
+                NEW HERE?
+              </Text>
+            </View>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#E5E7EB' }} />
+          </View>
+
+          {/* Sign Up row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', marginBottom: 16 }}>
+            <Text style={styles.bottomNavText}>Don&apos;t have an account? </Text>
+            <TouchableOpacity onPress={() => router.push('/register')}>
+              <Text style={styles.bottomNavLink}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* or divider */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 14, paddingHorizontal: 8 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#EBEBEB' }} />
+            <Text style={{ fontSize: 14, color: '#9CA3AF', fontWeight: '600', marginHorizontal: 12 }}>or</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#EBEBEB' }} />
+          </View>
+
+          {/* Browse as Visitor */}
+          <TouchableOpacity
+            onPress={() => { enterVisitorMode(); router.replace('/(tabs)'); }}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 4 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="eye-outline" size={16} color="#6B7280" style={{ marginRight: 7 }} />
+            <Text style={{ color: '#6B7280', fontSize: 15, fontWeight: '600' }}>Browse as a Visitor</Text>
           </TouchableOpacity>
+
         </View>
-
-        {/* Divider */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', marginBottom: 16, paddingHorizontal: 8 }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: '#EBEBEB' }} />
-          <Text style={{ fontSize: 11, color: '#C4C4C4', fontWeight: '500', marginHorizontal: 10 }}>or</Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: '#EBEBEB' }} />
-        </View>
-
-        {/* Browse as Visitor */}
-        <TouchableOpacity
-          onPress={() => { enterVisitorMode(); router.replace('/(tabs)'); }}
-          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 4 }}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="eye-outline" size={15} color="#9CA3AF" style={{ marginRight: 6 }} />
-          <Text style={{ color: '#9CA3AF', fontSize: 13, fontWeight: '500' }}>Browse as a Visitor</Text>
-        </TouchableOpacity>
-
-      </View>
+      )}
 
       {resetModal}
     </KeyboardAvoidingView>
@@ -421,9 +447,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'column',
     backgroundColor: Colors.light.white,
-    borderTopWidth: 1,
-    borderTopColor: '#F5F5F5',
-    gap: 0,
+    // border removed - using explicit separator instead
   },
 
   bottomNavText: { color: Colors.light.textSecondary, fontSize: 14 },

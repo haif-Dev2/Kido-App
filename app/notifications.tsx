@@ -1,15 +1,24 @@
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
+import { READING_MAX_WIDTH, useResponsive } from '../lib/responsive';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../providers/auth-provider';
-import { READING_MAX_WIDTH, useResponsive } from '../lib/responsive';
+
+const MOCK_READ_KEY = '@kido:mock_notifications_read';
 
 type NotifType =
   | 'NEW_BOOKING'
@@ -118,11 +127,26 @@ export default function NotificationsScreen() {
 
   const load = useCallback(async () => {
     if (!userId) {
-      setItems(MOCK_NOTIFICATIONS);
-      setUsingMock(true);
+      // Visitor / no session → use mock with persisted read state
+      try {
+        const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
+        const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
+
+        const mocksWithState = MOCK_NOTIFICATIONS.map(n => ({
+          ...n,
+          is_read: readIds.includes(String(n.id)) ? true : n.is_read,
+        }));
+
+        setItems(mocksWithState);
+        setUsingMock(true);
+      } catch {
+        setItems(MOCK_NOTIFICATIONS);
+        setUsingMock(true);
+      }
       setLoading(false);
       return;
     }
+
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -132,11 +156,32 @@ export default function NotificationsScreen() {
 
     if (error) {
       console.warn('[notifications] fetch error:', error.message);
-      setItems(MOCK_NOTIFICATIONS);
+      // Fallback to mock with persistence
+      try {
+        const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
+        const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
+        const mocksWithState = MOCK_NOTIFICATIONS.map(n => ({
+          ...n,
+          is_read: readIds.includes(String(n.id)) ? true : n.is_read,
+        }));
+        setItems(mocksWithState);
+      } catch {
+        setItems(MOCK_NOTIFICATIONS);
+      }
       setUsingMock(true);
     } else if (!data || data.length === 0) {
-      // No real notifications yet — show mock so the screen isn't empty during demo.
-      setItems(MOCK_NOTIFICATIONS);
+      // No real notifications yet → show persisted mock
+      try {
+        const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
+        const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
+        const mocksWithState = MOCK_NOTIFICATIONS.map(n => ({
+          ...n,
+          is_read: readIds.includes(String(n.id)) ? true : n.is_read,
+        }));
+        setItems(mocksWithState);
+      } catch {
+        setItems(MOCK_NOTIFICATIONS);
+      }
       setUsingMock(true);
     } else {
       setItems(data as NotificationRow[]);
@@ -148,7 +193,7 @@ export default function NotificationsScreen() {
   // Load on mount / when user changes.
   useEffect(() => { load(); }, [load]);
 
-  // Refresh whenever the screen gains focus (e.g. coming back from a detail).
+  // Refresh whenever the screen gains focus.
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const onRefresh = useCallback(async () => {
@@ -161,14 +206,29 @@ export default function NotificationsScreen() {
 
   const markAsRead = useCallback(async (id: string) => {
     setItems(prev => prev.map(n => (n.id === id ? { ...n, is_read: true } : n)));
+
     if (!usingMock && userId) {
       await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    } else if (usingMock) {
+      // Persist mock read state
+      try {
+        const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
+        const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
+        if (!readIds.includes(id)) {
+          readIds.push(id);
+          await AsyncStorage.setItem(MOCK_READ_KEY, JSON.stringify(readIds));
+        }
+      } catch (e) {
+        console.warn('Failed to persist mock read state', e);
+      }
     }
   }, [usingMock, userId]);
 
   const markAllAsRead = useCallback(async () => {
     if (unreadCount === 0) return;
+
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
+
     if (!usingMock && userId) {
       const { error } = await supabase
         .from('notifications')
@@ -179,13 +239,20 @@ export default function NotificationsScreen() {
         Alert.alert('Could not update', error.message);
         await load();
       }
+    } else if (usingMock) {
+      // Persist all as read for mock mode
+      const allIds = items.map(n => String(n.id));
+      try {
+        await AsyncStorage.setItem(MOCK_READ_KEY, JSON.stringify(allIds));
+      } catch (e) {
+        console.warn('Failed to persist mock read-all state', e);
+      }
     }
-  }, [unreadCount, usingMock, userId, load]);
+  }, [unreadCount, usingMock, userId, items, load]);
 
   const onItemPress = useCallback(async (n: NotificationRow) => {
     if (!n.is_read) await markAsRead(n.id);
 
-    // Navigate based on payload.
     const bookingId = n.data?.booking_id;
     const sitterId  = n.data?.sitter_id ?? n.data?.babysitter_id;
 
@@ -322,7 +389,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, gap: 12,
   },
   iconBtn: {
-    // 44×44 tap-target spec.
     width: 44, height: 44, borderRadius: 12,
     backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F0F0F0',
     alignItems: 'center', justifyContent: 'center',

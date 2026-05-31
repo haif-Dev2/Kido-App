@@ -2,10 +2,10 @@
  * Fetches validated babysitters from Supabase.
  * Falls back to MOCK_SITTERS when unauthenticated or when the table is empty.
  */
-import { supabase } from '../supabase';
-import { MOCK_SITTERS, type MockSitter } from '../mock/sitters';
 import { Role } from '../../models/types';
 import { calculateDistance } from '../location-service';
+import { MOCK_SITTERS, type MockSitter } from '../mock/sitters';
+import { supabase } from '../supabase';
 
 /**
  * Re-compute distanceKm for every sitter based on the user's real coordinates.
@@ -67,7 +67,9 @@ function rowToMockSitter(row: any): MockSitter {
     hourlyRate: row.hourly_rate ?? 200,
     availabilities: [],
     averageRating: Number(row.average_rating) || 0,
-    location: `Algiers, ${row.neighborhood ?? 'Algiers'}`,
+    location: row.city
+      ? `${row.city}, ${row.neighborhood ?? row.city}`
+      : (row.neighborhood ?? 'Algeria'),
     isValidated: row.is_validated ?? false,
     identityVerified: row.identity_verified ?? false,
     neighborhood: row.neighborhood ?? 'Algiers',
