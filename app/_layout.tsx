@@ -70,10 +70,12 @@ export default function RootLayout() {
             <Stack.Screen name="sitter/[id]" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="booking/new/[sitterId]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="booking/[id]" options={{ animation: 'slide_from_right' }} />
+            <Stack.Screen name="video-call/[bookingId]" options={{ headerShown: false, animation: 'fade', gestureEnabled: false }} />
             <Stack.Screen name="review/new/[bookingId]" options={{ presentation: 'modal' }} />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="edit-profile" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="sitter-home" options={{ animation: 'fade', gestureEnabled: false }} />
+            <Stack.Screen name="(sitter-tabs)" options={{ animation: 'fade', gestureEnabled: false }} />
           </Stack>
         </BottomSheetModalProvider>
       </AuthProvider>

@@ -1,15 +1,25 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
+import { usePhotoUpload } from '../lib/hooks/usePhotoUpload';
+import { READING_MAX_WIDTH, useResponsive } from '../lib/responsive';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../providers/auth-provider';
-import { READING_MAX_WIDTH, useResponsive } from '../lib/responsive';
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -24,6 +34,15 @@ export default function EditProfileScreen() {
   const [city, setCity] = useState('');
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Photo upload state
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
+  const { pickAndUpload, uploading } = usePhotoUpload((url) => {
+    setLocalPhotoUri(url);
+    refreshProfile();
+  });
+
+  const photoUri = localPhotoUri ?? profile?.photo_url ?? null;
 
   useEffect(() => {
     if (profile) {
@@ -45,15 +64,20 @@ export default function EditProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Build updates object safely — only include fields that exist
+      const updates: Record<string, any> = {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        phone: phone.trim() || null,
+      };
+
+      // Only include optional fields if they are present in the form
+      if (city !== undefined) updates.city = city.trim() || null;
+      if (bio !== undefined) updates.bio = bio.trim() || null;
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          phone: phone.trim() || null,
-          city: city.trim() || null,
-          bio: bio.trim() || null,
-        })
+        .update(updates)
         .eq('id', user.id);
 
       if (error) throw error;
@@ -75,7 +99,7 @@ export default function EditProfileScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[s.page, { paddingTop: insets.top, alignItems: 'center' }]}>
-        {/* Header — full-width white bar with content centered to maxWidth. */}
+        {/* Header */}
         <View style={[s.header, { width: '100%', maxWidth: contentMaxWidth }]}>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -87,10 +111,17 @@ export default function EditProfileScreen() {
             <Ionicons name="chevron-back" size={22} color={Colors.light.text} />
           </TouchableOpacity>
           <Text style={s.headerTitle}>Edit Profile</Text>
-          <TouchableOpacity onPress={handleSave} disabled={saving} style={s.saveBtn} accessibilityRole="button">
-            {saving
-              ? <ActivityIndicator size="small" color={Colors.light.primary} />
-              : <Text style={s.saveBtnText}>Save</Text>}
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={saving}
+            style={s.saveBtn}
+            accessibilityRole="button"
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={Colors.light.primary} />
+            ) : (
+              <Text style={s.saveBtnText}>Save</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -100,23 +131,50 @@ export default function EditProfileScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Avatar with camera icon */}
-          <View style={s.avatarRow}>
-            <View style={s.avatarCircle}>
-              <Text style={s.avatarInitials}>
-                {(firstName[0] ?? '?').toUpperCase()}{(lastName[0] ?? '').toUpperCase()}
-              </Text>
-            </View>
-            <View style={s.cameraBtn}>
-              <Ionicons name="camera" size={16} color="#FFFFFF" />
-            </View>
-          </View>
+          {/* Avatar — tappable, uploads to Supabase Storage */}
+          <TouchableOpacity
+            style={s.avatarRow}
+            onPress={pickAndUpload}
+            disabled={uploading}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Change profile photo"
+          >
+            {photoUri ? (
+              <Image
+                source={{ uri: photoUri }}
+                style={s.avatarCircle}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={s.avatarCircle}>
+                <Text style={s.avatarInitials}>
+                  {(firstName[0] ?? '?').toUpperCase()}
+                  {(lastName[0] ?? '').toUpperCase()}
+                </Text>
+              </View>
+            )}
 
-          <Field label="Full Name" value={`${firstName} ${lastName}`.trim()} onChange={(v) => {
-            const parts = v.split(' ');
-            setFirstName(parts[0] ?? '');
-            setLastName(parts.slice(1).join(' ') ?? '');
-          }} placeholder="e.g. Sarah Johnson" autoCapitalize="words" />
+            <View style={[s.cameraBtn, uploading && { backgroundColor: '#9CA3AF' }]}>
+              {uploading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="camera" size={16} color="#FFFFFF" />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <Field
+            label="Full Name"
+            value={`${firstName} ${lastName}`.trim()}
+            onChange={(v) => {
+              const parts = v.split(' ');
+              setFirstName(parts[0] ?? '');
+              setLastName(parts.slice(1).join(' ') ?? '');
+            }}
+            placeholder="e.g. Sarah Johnson"
+            autoCapitalize="words"
+          />
 
           {/* Email (read-only) */}
           <View style={s.fieldWrap}>
@@ -133,8 +191,20 @@ export default function EditProfileScreen() {
             placeholder="+213 555 012 345"
             keyboardType="phone-pad"
           />
-          <Field label="City" value={city} onChange={setCity} placeholder="Algiers, Hydra" autoCapitalize="words" />
-          <Field label="Bio" value={bio} onChange={setBio} placeholder="Mom of two. Looking for reliable babysitters..." multiline />
+          <Field
+            label="City"
+            value={city}
+            onChange={setCity}
+            placeholder="Algiers, Hydra"
+            autoCapitalize="words"
+          />
+          <Field
+            label="Bio"
+            value={bio}
+            onChange={setBio}
+            placeholder="Mom of two. Looking for reliable babysitters..."
+            multiline
+          />
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -142,7 +212,13 @@ export default function EditProfileScreen() {
 }
 
 function Field({
-  label, value, onChange, placeholder, keyboardType, autoCapitalize, multiline,
+  label,
+  value,
+  onChange,
+  placeholder,
+  keyboardType,
+  autoCapitalize,
+  multiline,
 }: {
   label: string;
   value: string;
@@ -172,49 +248,77 @@ function Field({
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#F5F6F8' },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
-  // Bumped 36→44 to satisfy tap-target spec.
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.light.text },
   saveBtn: {
     backgroundColor: Colors.light.primary,
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-    minWidth: 64, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   saveBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
 
-  avatarRow: { alignItems: 'center', marginBottom: 28, position: 'relative', alignSelf: 'center' },
+  avatarRow: {
+    alignItems: 'center',
+    marginBottom: 28,
+    position: 'relative',
+    alignSelf: 'center',
+  },
   avatarCircle: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: Colors.light.primaryLight,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   avatarInitials: { fontSize: 26, fontWeight: '700', color: Colors.light.primary },
   cameraBtn: {
-    position: 'absolute', bottom: 0, right: -4,
-    width: 28, height: 28, borderRadius: 14,
+    position: 'absolute',
+    bottom: 0,
+    right: -4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: Colors.light.primary,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
 
   fieldWrap: { marginBottom: 18 },
-  fieldLabel: { fontSize: 12, fontWeight: '700', color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   fieldInput: {
-    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB',
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 15, color: Colors.light.text,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: Colors.light.text,
   },
   fieldDisabled: { backgroundColor: '#F9FAFB' },
   fieldDisabledText: { fontSize: 15, color: '#9CA3AF' },
-  fieldHint: { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
-
-  saveBlock: {
-    backgroundColor: Colors.light.primary, borderRadius: 14,
-    paddingVertical: 16, alignItems: 'center', marginTop: 8,
-  },
-  saveBlockText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
 });

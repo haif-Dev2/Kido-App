@@ -1,34 +1,36 @@
 // app/booking/new/[sitterId].tsx
-import React, { useState, useMemo } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  Text,
-  StatusBar,
-  Modal,
-  TouchableOpacity,
+  Alert,
   FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
-import { colors, fonts, radius } from '@/theme/colors';
 import { BookingHero } from '@/components/booking/BookingHero';
-import { SectionHeader } from '@/components/booking/SectionHeader';
-import { DayStripPicker } from '@/components/booking/DayStripPicker';
-import { TimeSelector } from '@/components/booking/TimeSelector';
-import {
-  ServiceSelector,
-  ServiceType,
-  DEFAULT_SERVICES,
-} from '@/components/booking/ServiceSelector';
+import { BookingSummary } from '@/components/booking/BookingSummary';
 import { ChildrenCounter } from '@/components/booking/ChildrenCounter';
+import { DayStripPicker } from '@/components/booking/DayStripPicker';
 import { NotesInput } from '@/components/booking/NotesInput';
 import { SafetyTrackingCard } from '@/components/booking/SafetyTrackingCard';
-import { BookingSummary } from '@/components/booking/BookingSummary';
+import { SectionHeader } from '@/components/booking/SectionHeader';
+import {
+  DEFAULT_SERVICES,
+  ServiceSelector,
+  ServiceType,
+} from '@/components/booking/ServiceSelector';
+import { TimeSelector } from '@/components/booking/TimeSelector';
+import { supabase } from '@/lib/supabase';
+import { colors, fonts, radius } from '@/theme/colors';
 import { READING_MAX_WIDTH, useResponsive } from '../../../lib/responsive';
 
 export default function BookingScreen() {
@@ -108,7 +110,39 @@ export default function BookingScreen() {
     return slots;
   }, []);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
+    // Check for active bookings before proceeding
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      Alert.alert('Not logged in', 'Please log in to create a booking.');
+      return;
+    }
+
+    const { data: activeBookings, error: checkError } = await supabase
+      .from('bookings')
+      .select('id, status, start_date')
+      .eq('parent_id', session!.user.id)
+      .in('status', ['PENDING', 'CONFIRMED', 'IN_PROGRESS'])
+      .limit(1);
+
+    if (!checkError && activeBookings && activeBookings.length > 0) {
+      const active = activeBookings[0];
+      Alert.alert(
+        'Active booking exists',
+        `You already have a ${active.status.toLowerCase()} booking. You can make a new booking once it is completed.`,
+        [
+          { 
+            text: 'View booking', 
+            onPress: () => router.push({ pathname: '/booking/[id]', params: { id: active.id } }) 
+          },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    // Proceed to confirmation if no active booking
     router.push({
       pathname: '/booking/confirm',
       params: {

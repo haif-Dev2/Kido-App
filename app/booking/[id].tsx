@@ -1,26 +1,36 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ChevronLeft, Calendar, Clock, MessageCircle, Star, Phone, MapPin,
-  Check, X, Hourglass, CircleAlert, CircleCheck, Shield,
+  Calendar,
+  Check,
+  ChevronLeft,
+  CircleAlert, CircleCheck,
+  Clock,
+  Hourglass,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Shield,
+  Star,
+  X,
 } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, IconButton } from '../../components/ui/Button';
-import { Avatar } from '../../components/ui/Avatar';
-import { Rating } from '../../components/ui/Rating';
 import { SitterDistanceTracker } from '../../components/SitterDistanceTracker';
+import { Avatar } from '../../components/ui/Avatar';
+import { Button, IconButton } from '../../components/ui/Button';
 import { Map } from '../../components/ui/Map';
+import { Rating } from '../../components/ui/Rating';
+import { fetchSitterById } from '../../lib/api/sitters';
 import { haptics } from '../../lib/haptics';
 import { MOCK_BOOKINGS, type MockBooking } from '../../lib/mock/bookings';
 import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
-import { fetchSitterById } from '../../lib/api/sitters';
+import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
 import { supabase } from '../../lib/supabase';
 import { BookingStatus } from '../../models/types';
-import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
 
 /**
  * Booking Detail — premium status-first layout with hero gradient,
@@ -313,7 +323,17 @@ export default function BookingDetailScreen() {
                   variant="secondary"
                   size="lg"
                   leftIcon={Phone}
-                  onPress={() => haptics.medium()}
+                  onPress={() => {
+                    haptics.medium();
+                    const phone = sitter?.phone;
+                    if (!phone) {
+                      Alert.alert('Not available', 'This sitter has no phone number on file.');
+                      return;
+                    }
+                    Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() =>
+                      Alert.alert('Cannot call', 'Your device could not open the phone app.')
+                    );
+                  }}
                 />
               </View>
             </View>
@@ -484,10 +504,12 @@ function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
+
 function shortDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
 function timeOf(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });

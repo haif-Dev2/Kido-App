@@ -46,7 +46,7 @@ export default function IndexRouter() {
 
     // Route by role
     if (profile.role === 'BABY_SITTER') {
-      router.replace('/sitter-home');
+      router.replace('/(sitter-tabs)');
     } else {
       router.replace('/(tabs)');
     }

@@ -1,20 +1,28 @@
 // app/chat/[sitterId].tsx
 // Real-looking chat screen between parent and sitter.
-import React, { useState, useRef, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, FlatList, TextInput,
-  Pressable, KeyboardAvoidingView, Platform,
-  StatusBar,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { colors, fonts, radius } from '../../theme/colors';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useRef, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics } from '../../lib/haptics';
 import { MOCK_SITTERS } from '../../lib/mock/sitters';
 import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
+import { colors, fonts, radius } from '../../theme/colors';
 
 type Message = {
   id: string;
@@ -53,10 +61,11 @@ export default function ChatScreen() {
   const { isPhone } = useResponsive();
   const contentMaxWidth = isPhone ? undefined : READING_MAX_WIDTH;
 
-  const { sitterId, sitterName, sitterAvatar } = useLocalSearchParams<{
+  const { sitterId, sitterName, sitterAvatar, bookingId } = useLocalSearchParams<{
     sitterId: string;
     sitterName?: string;
     sitterAvatar?: string;
+    bookingId?: string;
   }>();
 
   const sitter = MOCK_SITTERS.find(s => String(s.id) === String(sitterId)) ?? MOCK_SITTERS[0];
@@ -131,14 +140,42 @@ export default function ChatScreen() {
             </View>
           </View>
 
+          {/* Audio call */}
           <Pressable
             style={styles.callBtn}
-            onPress={() => haptics.light()}
+            onPress={() => {
+              haptics.light();
+              const phone = sitter?.phone;
+              if (!phone) {
+                Alert.alert('Not available', 'This sitter has no phone number on file.');
+                return;
+              }
+              Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() =>
+                Alert.alert('Cannot call', 'Your device could not open the phone app.')
+              );
+            }}
             accessibilityRole="button"
             accessibilityLabel="Call sitter"
             hitSlop={8}
           >
             <Ionicons name="call-outline" size={20} color={colors.primary} />
+          </Pressable>
+
+          {/* Video call */}
+          <Pressable
+            style={[styles.callBtn, { marginLeft: 8 }]}
+            onPress={() => {
+              haptics.light();
+              router.push({
+                pathname: '/video-call/[bookingId]' as any,
+                params: { bookingId: bookingId ?? sitterId },
+              });
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Video call"
+            hitSlop={8}
+          >
+            <Ionicons name="videocam-outline" size={20} color={colors.primary} />
           </Pressable>
         </View>
       </SafeAreaView>
