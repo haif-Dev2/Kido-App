@@ -1,7 +1,7 @@
 // app/booking/new/[sitterId].tsx
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -11,6 +11,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,9 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BookingHero } from '@/components/booking/BookingHero';
 import { BookingSummary } from '@/components/booking/BookingSummary';
-import { ChildrenCounter } from '@/components/booking/ChildrenCounter';
 import { DayStripPicker } from '@/components/booking/DayStripPicker';
-import { NotesInput } from '@/components/booking/NotesInput';
 import { SafetyTrackingCard } from '@/components/booking/SafetyTrackingCard';
 import { SectionHeader } from '@/components/booking/SectionHeader';
 import {
@@ -50,9 +49,20 @@ export default function BookingScreen() {
   const [endTime, setEndTime] = useState('12:00');
   const [showTimePicker, setShowTimePicker] = useState<'start' | 'end' | null>(null);
   const [service, setService] = useState<ServiceType>('babysitting');
-  const [children, setChildren] = useState(1);
-  const [notes, setNotes] = useState('');
+  const [children, setChildren] = useState(1); // legacy for compatibility
+  const [childrenCount, setChildrenCount] = useState(1);
+  const [childrenAges, setChildrenAges] = useState<number[]>([0]);
+  const [specialNotes, setSpecialNotes] = useState('');
   const [shareLocation, setShareLocation] = useState(true);
+
+  // Keep childrenAges array in sync with childrenCount
+  useEffect(() => {
+    setChildrenAges(prev => {
+      const next = [...prev];
+      while (next.length < childrenCount) next.push(0);
+      return next.slice(0, childrenCount);
+    });
+  }, [childrenCount]);
 
   // ---- Pricing ----
   const selectedService = DEFAULT_SERVICES.find((s) => s.id === service)!;
@@ -69,9 +79,9 @@ export default function BookingScreen() {
 
   const total = useMemo(() => {
     const base = baseRate * hours;
-    const multiplier = 1 + (children - 1) * 0.25;
+    const multiplier = 1 + (childrenCount - 1) * 0.25;
     return Math.round(base * multiplier);
-  }, [baseRate, hours, children]);
+  }, [baseRate, hours, childrenCount]);
 
   // ---- Helpers ----
   const handleSetHours = (h: number) => {
@@ -153,8 +163,10 @@ export default function BookingScreen() {
         startTime,
         endTime,
         service,
-        children: String(children),
-        notes,
+        children: String(childrenCount),
+        childrenAges: JSON.stringify(childrenAges),
+        notes: specialNotes,
+        specialNotes,
         shareLocation: String(shareLocation),
         total: String(total),
       },
@@ -172,9 +184,9 @@ export default function BookingScreen() {
       })} · ${startTime}–${endTime}`,
     },
     { label: 'Service', value: `${selectedService.name} · ${hours}h` },
-    { label: 'Children', value: `${children}${children > 1 ? ` (+${(children - 1) * 25}%)` : ''}` },
+    { label: 'Children', value: `${childrenCount}${childrenCount > 1 ? ` (+${(childrenCount - 1) * 25}%)` : ''}` },
     { label: 'Base rate', value: `${baseRate * hours} DZD` },
-    ...(children > 1
+    ...(childrenCount > 1
       ? [
           {
             label: 'Extra child',
@@ -230,19 +242,74 @@ export default function BookingScreen() {
             />
           </View>
 
-          {/* 03 - Service */}
+          {/* Number of children + Ages - Added after time picker */}
           <View style={styles.section}>
-            <SectionHeader step="03" category="Service" title="What do you need?" />
+            <SectionHeader step="03" category="Family" title="How many children?" />
+
+            {/* Number of children */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={s.fieldLabel}>Number of children *</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                {[1, 2, 3, 4].map(n => (
+                  <TouchableOpacity
+                    key={n}
+                    style={[
+                      s.countBtn,
+                      childrenCount === n && s.countBtnActive,
+                    ]}
+                    onPress={() => setChildrenCount(n)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.countBtnText, childrenCount === n && s.countBtnTextActive]}>
+                      {n}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Children ages */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={s.fieldLabel}>Children ages (years) *</Text>
+              <Text style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 6 }}>
+                Helps the sitter prepare the right equipment
+              </Text>
+              {Array.from({ length: childrenCount }).map((_, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, color: '#6B7280', width: 60 }}>Child {i + 1}</Text>
+                  <View style={{ flexDirection: 'row', flex: 1, gap: 6, flexWrap: 'wrap' }}>
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
+                      <TouchableOpacity
+                        key={age}
+                        style={[
+                          s.ageBtn,
+                          (childrenAges[i] === age) && s.ageBtnActive,
+                        ]}
+                        onPress={() => {
+                          const next = [...childrenAges];
+                          next[i] = age;
+                          setChildrenAges(next);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[s.ageBtnText, (childrenAges[i] === age) && s.ageBtnTextActive]}>
+                          {age === 0 ? '< 1' : age}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* 04 - Service */}
+          <View style={styles.section}>
+            <SectionHeader step="04" category="Service" title="What do you need?" />
             <ServiceSelector selected={service} onChange={setService} />
           </View>
 
-          {/* 04 - Children */}
-          <View style={styles.section}>
-            <SectionHeader step="04" category="Family" title="How many children?" />
-            <ChildrenCounter value={children} onChange={setChildren} />
-          </View>
-
-          {/* 05 - Notes */}
+          {/* 05 - Special Notes */}
           <View style={styles.section}>
             <SectionHeader
               step="05"
@@ -250,7 +317,18 @@ export default function BookingScreen() {
               title="Anything specific?"
               subtitle="Allergies, routines, special requests"
             />
-            <NotesInput value={notes} onChange={setNotes} />
+            {/* Special notes */}
+            <View style={{ marginTop: 16 }}>
+              <Text style={s.fieldLabel}>Special instructions (optional)</Text>
+              <TextInput
+                value={specialNotes}
+                onChangeText={setSpecialNotes}
+                placeholder="Allergies, bedtime routine, etc."
+                multiline
+                numberOfLines={3}
+                style={[s.input, { height: 80, textAlignVertical: 'top', paddingTop: 10 }]}
+              />
+            </View>
           </View>
 
           {/* 06 - Safety */}
@@ -331,7 +409,7 @@ export default function BookingScreen() {
               {total.toLocaleString()} <Text style={styles.priceCur}>DZD</Text>
             </Text>
             <Text style={styles.priceSub}>
-              {hours} hrs · {children} {children === 1 ? 'kid' : 'kids'}
+              {hours} hrs · {childrenCount} {childrenCount === 1 ? 'kid' : 'kids'}
             </Text>
           </View>
 
@@ -346,6 +424,54 @@ export default function BookingScreen() {
     </View>
   );
 }
+
+const s = StyleSheet.create({
+  fieldLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  countBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  countBtnText: { fontSize: 16, fontWeight: '600', color: '#374151' },
+  countBtnTextActive: { color: '#FFFFFF' },
+  ageBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  ageBtnActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  ageBtnText: { fontSize: 12, fontWeight: '500', color: '#374151' },
+  ageBtnTextActive: { color: '#FFFFFF' },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+  },
+});
 
 const styles = StyleSheet.create({
   root: {

@@ -1,15 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
@@ -65,14 +66,48 @@ export default function SitterProfileTab() {
     setIsAvailable(value);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('babysitter_details')
-          .update({ is_available: value })
-          .eq('profile_id', user.id);
+      if (!user) return;
+
+      if (value) {
+        // Turning ON — get GPS location first
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Location required', 'Please allow location access to appear on the map for parents.');
+          setIsAvailable(false);
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+
+        // Save to sitter_locations (neighborhood-level — round to 2 decimals for ~1km precision)
+        await supabase.from('sitter_locations').upsert({
+          sitter_id: user.id,
+          latitude: Math.round(loc.coords.latitude * 100) / 100,
+          longitude: Math.round(loc.coords.longitude * 100) / 100,
+          neighborhood: (profile as any)?.city ?? 'Algeria',
+          is_available: true,
+          updated_at: new Date().toISOString(),
+        });
+      } else {
+        // Turning OFF — mark unavailable
+        await supabase.from('sitter_locations').upsert({
+          sitter_id: user.id,
+          latitude: 0,
+          longitude: 0,
+          is_available: false,
+          updated_at: new Date().toISOString(),
+        });
       }
-    } catch {
-      /* optimistic update */
+
+      // Also update babysitter_details
+      await supabase.from('babysitter_details')
+        .update({ is_available: value })
+        .eq('profile_id', user.id);
+
+    } catch (e: any) {
+      Alert.alert('Error', 'Could not update availability. Try again.');
+      setIsAvailable(!value); // revert
     }
   };
 

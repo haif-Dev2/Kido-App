@@ -7,16 +7,18 @@ export interface MapLocation {
   longitude: number;
   title?: string;
   description?: string;
+  photoUrl?: string;
+  markerId?: string;
 }
 
 interface MapComponentProps {
   markers?: MapLocation[];
   center?: MapLocation;
-  userLocationOverride?: MapLocation | null;  // ← ADD: explicit user dot position
+  userLocationOverride?: MapLocation | null;
   onMarkerPress?: (marker: MapLocation) => void;
   onLocationPress?: (location: MapLocation) => void;
   showUserLocation?: boolean;
-  zoom?: number;                               // ← ADD: leaflet zoom level
+  zoom?: number;
   height?: number | string;
   style?: any;
 }
@@ -31,61 +33,72 @@ try {
   WebView = require('react-native-webview').WebView;
 } catch { /* web fallback */ }
 
-// ─── Build Leaflet HTML map ────────────────────────────────────────────────
-
-// ✅ REPLACE buildLeafletHTML — now accepts separate mapCenter, userDot, and zoom
+// ─── Build Leaflet HTML ─────────────────────────────────────────────────────
 function buildLeafletHTML(
   mapCenter: MapLocation,
   userDot: MapLocation | null,
   markers: MapLocation[],
   zoom: number,
 ): string {
-  const markersJS = markers
-    .map((m) => `
-      L.circleMarker([${m.latitude}, ${m.longitude}], {
-        radius: 8, color: '#FFFFFF', weight: 2,
-        fillColor: '#0F766E', fillOpacity: 1
-      }).addTo(map).bindPopup(${JSON.stringify(m.title ?? '')});`)
-    .join('\n');
+  // Serialize everything to JSON — no escaping nightmares
+  const mData = JSON.stringify(markers.map(m => ({
+    lat: m.latitude,
+    lon: m.longitude,
+    title: m.title ?? '',
+    photo: m.photoUrl ?? null,
+    id: m.markerId ?? m.title ?? '',
+  })));
 
-  const userDotJS = userDot
-    ? `L.circleMarker([${userDot.latitude}, ${userDot.longitude}], {
-        radius: 10, color: '#FFFFFF', weight: 2,
-        fillColor: '#EC4899', fillOpacity: 1
-      }).addTo(map).bindTooltip('You', { permanent: false });`
-    : '';
+  const uLat = userDot ? userDot.latitude : null;
+  const uLon = userDot ? userDot.longitude : null;
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script>
-    var map = L.map('map', { zoomControl: true, attributionControl: false })
-      .setView([${mapCenter.latitude}, ${mapCenter.longitude}], ${zoom});
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-    ${markersJS}
-    ${userDotJS}
-    map.on('click', function(e) {
-      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
-        JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng })
-      );
-    });
-  </script>
-</body>
-</html>`;
+  // Build HTML with string concatenation — no backticks, no TypeScript parsing issues
+  return [
+    '<!DOCTYPE html><html><head>',
+    '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">',
+    '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>',
+    '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>',
+    '<style>',
+    '* { margin:0; padding:0; box-sizing:border-box; }',
+    'html,body,#map { width:100%; height:100%; }',
+    '.sm { width:44px;height:44px;border-radius:50%;border:2.5px solid #fff;overflow:hidden;',
+    '       box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;background:#0F766E; }',
+    '.sm img { width:100%;height:100%;object-fit:cover; }',
+    '.si { width:100%;height:100%;display:flex;align-items:center;justify-content:center;',
+    '      color:#fff;font-size:16px;font-weight:700; }',
+    '.leaflet-control-zoom { border:none!important;border-radius:8px!important;overflow:hidden; }',
+    '.leaflet-control-zoom a { border:none!important;background:rgba(255,255,255,.95)!important; }',
+    '</style></head><body><div id="map"></div><script>',
+    'var rnw = window.ReactNativeWebView || { postMessage: function(){} };',
+    'var map = L.map("map", { zoomControl:true, attributionControl:false })',
+    '  .setView([' + mapCenter.latitude + ',' + mapCenter.longitude + '], ' + zoom + ');',
+    'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19 }).addTo(map);',
+    'var markers = ' + mData + ';',
+    'markers.forEach(function(m) {',
+    '  var init = (m.title || "?").charAt(0).toUpperCase();',
+    '  var inner = m.photo',
+    '    ? \'<img src="\' + m.photo + \'" onerror="this.outerHTML=\'<div class=si>\'+init+\'</div>">\'',
+    '    : \'<div class="si">\' + init + \'</div>\';',
+    '  var icon = L.divIcon({',
+    '    className: "",',
+    '    html: \'<div class="sm">\' + inner + \'</div>\',',
+    '    iconSize: [44,44], iconAnchor: [22,22]',
+    '  });',
+    '  L.marker([m.lat, m.lon], { icon: icon }).addTo(map).on("click", function() {',
+    '    rnw.postMessage(JSON.stringify({ type:"markerPress", id:m.id, title:m.title }));',
+    '  });',
+    '});',
+    uLat !== null
+      ? 'L.circleMarker([' + uLat + ',' + uLon + '], { radius:10, color:"#fff", weight:2.5, fillColor:"#EC4899", fillOpacity:1 }).addTo(map).bindTooltip("You");'
+      : '',
+    'map.on("click", function(e) {',
+    '  rnw.postMessage(JSON.stringify({ type:"mapPress", lat:e.latlng.lat, lng:e.latlng.lng }));',
+    '});',
+    '</script></body></html>',
+  ].join('\n');
 }
 
 // ─── Visual placeholder (web platform) ────────────────────────────────────
-
 function MapPlaceholder({
   markers = [],
   center = DEFAULT_CENTER,
@@ -122,12 +135,20 @@ function MapPlaceholder({
         const len = Math.sqrt(dx * dx + dy * dy);
         const angle = Math.atan2(dy, dx) * (180 / Math.PI);
         return (
-          <View key={i} style={{
-            position: 'absolute', left: r.x1, top: r.y1,
-            width: len, height: 6, backgroundColor: '#b2d8d6',
-            borderRadius: 3, transform: [{ rotate: `${angle}deg` }],
-            transformOrigin: 'left center',
-          }} />
+          <View
+            key={i}
+            style={{
+              position: 'absolute',
+              left: r.x1,
+              top: r.y1,
+              width: len,
+              height: 6,
+              backgroundColor: '#b2d8d6',
+              borderRadius: 3,
+              transform: [{ rotate: `${angle}deg` }],
+              transformOrigin: 'left center',
+            }}
+          />
         );
       })}
       {markers.map((m, i) => {
@@ -135,16 +156,25 @@ function MapPlaceholder({
         return <View key={i} style={[p.dot, p.dotTeal, { left: x - 7, top: y - 7 }]} />;
       })}
       {showUserLocation && (
-        <View style={[p.dot, p.dotPink, {
-          left: userPos.x - 9, top: userPos.y - 9, width: 18, height: 18, borderRadius: 9,
-        }]} />
+        <View
+          style={[
+            p.dot,
+            p.dotPink,
+            {
+              left: userPos.x - 9,
+              top: userPos.y - 9,
+              width: 18,
+              height: 18,
+              borderRadius: 9,
+            },
+          ]}
+        />
       )}
     </View>
   );
 }
 
 // ─── Main Map component ────────────────────────────────────────────────────
-
 export function Map({
   markers = [],
   center,
@@ -152,7 +182,7 @@ export function Map({
   onMarkerPress,
   onLocationPress,
   showUserLocation = true,
-  zoom = 13,             // ← default zoom 13 (city level)
+  zoom = 13,
   height = 300,
   style,
 }: MapComponentProps) {
@@ -188,10 +218,7 @@ export function Map({
     );
   }
 
-  // Map VIEW always centers on `center` prop (searched city or default)
   const mapViewCenter = effectiveCenter;
-
-  // Pink dot: explicit override > device GPS > null (hidden)
   const userDot = showUserLocation
     ? (userLocationOverride ?? deviceLocation ?? null)
     : null;
@@ -208,9 +235,16 @@ export function Map({
         scrollEnabled={false}
         onMessage={(event: any) => {
           try {
-            const { lat, lng } = JSON.parse(event.nativeEvent.data);
-            onLocationPress?.({ latitude: lat, longitude: lng });
-          } catch { /* ignore */ }
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data.type === 'markerPress') {
+              const marker = markers.find(
+                m => m.markerId === data.id || m.title === data.title
+              );
+              if (marker) onMarkerPress?.(marker);
+            } else if (data.type === 'mapPress') {
+              onLocationPress?.({ latitude: data.lat, longitude: data.lng });
+            }
+          } catch {}
         }}
       />
     </View>
@@ -220,10 +254,15 @@ export function Map({
 const p = StyleSheet.create({
   dot: {
     position: 'absolute',
-    width: 14, height: 14, borderRadius: 7,
-    borderWidth: 2, borderColor: '#FFFFFF',
-    shadowColor: '#000', shadowOpacity: 0.2,
-    shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
     elevation: 3,
   },
   dotTeal: { backgroundColor: '#0F766E' },
