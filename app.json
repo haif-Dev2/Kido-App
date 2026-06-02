@@ -8,7 +8,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "kido",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -16,9 +15,14 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.reactnativetutorial"
+      "package": "com.anonymous.reactnativetutorial",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "ios": {
       "supportsTablet": true,
@@ -55,6 +59,16 @@
           "locationWhenInUsePermission": "Kido needs your location to show nearby babysitters and their distance from you.",
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "enableNewArchitecture": true,
+            "enableEdgeToEdge": true
+          }
         }
       ]
     ],

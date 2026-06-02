@@ -42,41 +42,34 @@ function cleanAmazigh(text: string): string {
   return text.replace(/[\u2D30-\u2D7F]+/g, '').replace(/\s{2,}/g, ' ').trim();
 }
 
-// ── Mostaganem instant suggestions (no network needed) ──
-const MOSTAGANEM_AREAS: GeoSuggestion[] = [
-  { name: 'Mostaganem',       displayName: 'Mostaganem, Wilaya de Mostaganem, Algérie',   lat: 35.9317, lon: 0.0892, boundingBox: [35.88, 35.97, 0.03, 0.16] },
-  { name: 'Tijditt',          displayName: 'Tijditt, Mostaganem, Algérie',                 lat: 35.9278, lon: 0.0978, boundingBox: [35.91, 35.95, 0.07, 0.13] },
-  { name: 'Salamandre',       displayName: 'Salamandre, Mostaganem, Algérie',              lat: 35.9200, lon: 0.0760, boundingBox: [35.90, 35.94, 0.05, 0.11] },
-  { name: 'Stidia',           displayName: 'Stidia, Mostaganem, Algérie',                  lat: 35.8568, lon: 0.0292, boundingBox: [35.83, 35.88, 0.00, 0.07] },
-  { name: 'Mazagran',         displayName: 'Mazagran, Mostaganem, Algérie',                lat: 35.9256, lon: 0.0583, boundingBox: [35.90, 35.95, 0.03, 0.09] },
-  { name: 'Mesra',            displayName: 'Mesra, Mostaganem, Algérie',                   lat: 35.8892, lon: 0.1156, boundingBox: [35.86, 35.92, 0.08, 0.16] },
-  { name: 'Aïn Tédelès',      displayName: 'Aïn Tédelès, Mostaganem, Algérie',            lat: 36.0050, lon: 0.3067, boundingBox: [35.97, 36.04, 0.27, 0.35] },
-  { name: 'Bouguirat',        displayName: 'Bouguirat, Mostaganem, Algérie',               lat: 36.0569, lon: 0.0833, boundingBox: [36.02, 36.10, 0.04, 0.13] },
-  { name: 'Hassi Mamèche',    displayName: 'Hassi Mamèche, Mostaganem, Algérie',           lat: 35.9439, lon: 0.2442, boundingBox: [35.91, 35.98, 0.20, 0.29] },
-  { name: 'Sidi Ali',         displayName: 'Sidi Ali, Mostaganem, Algérie',                lat: 36.1031, lon: 0.4539, boundingBox: [36.07, 36.14, 0.41, 0.50] },
-  { name: 'Aïn Nouissy',      displayName: 'Aïn Nouissy, Mostaganem, Algérie',            lat: 35.9208, lon: 0.0369, boundingBox: [35.89, 35.95, 0.00, 0.08] },
-  { name: 'Sayada',           displayName: 'Sayada, Mostaganem, Algérie',                  lat: 36.0808, lon: 0.1467, boundingBox: [36.05, 36.11, 0.11, 0.19] },
-  { name: 'Mansourah',        displayName: 'Mansourah, Mostaganem, Algérie',               lat: 36.0231, lon: 0.0594, boundingBox: [35.99, 36.06, 0.02, 0.10] },
-  { name: 'Kheireddine',      displayName: 'Kheireddine, Mostaganem, Algérie',             lat: 36.0522, lon: 0.2047, boundingBox: [36.02, 36.09, 0.16, 0.25] },
-  { name: 'Sirat',            displayName: 'Sirat, Mostaganem, Algérie',                   lat: 35.8808, lon: 0.1853, boundingBox: [35.85, 35.92, 0.14, 0.23] },
-  { name: 'Fornaka',          displayName: 'Fornaka, Mostaganem, Algérie',                 lat: 36.0189, lon: 0.3786, boundingBox: [35.99, 36.05, 0.34, 0.42] },
-  { name: 'Souaflia',         displayName: 'Souaflia, Mostaganem, Algérie',                lat: 36.1144, lon: 0.2583, boundingBox: [36.08, 36.15, 0.22, 0.30] },
-  { name: 'Tazgaït',          displayName: 'Tazgaït, Mostaganem, Algérie',                lat: 35.9731, lon: 0.1458, boundingBox: [35.94, 36.01, 0.10, 0.19] },
-  { name: 'Nekmaria',         displayName: 'Nekmaria, Mostaganem, Algérie',                lat: 36.0369, lon: 0.4786, boundingBox: [36.01, 36.07, 0.44, 0.52] },
-  { name: 'Achaacha',         displayName: 'Achaacha, Mostaganem, Algérie',                lat: 36.1847, lon: 0.1894, boundingBox: [36.15, 36.22, 0.14, 0.24] },
-  { name: 'Touahria',         displayName: 'Touahria, Mostaganem, Algérie',                lat: 35.9058, lon: 0.2417, boundingBox: [35.87, 35.94, 0.19, 0.29] },
-  { name: 'Aïn Sidi Cherif',  displayName: 'Aïn Sidi Cherif, Mostaganem, Algérie',        lat: 36.0783, lon: 0.0242, boundingBox: [36.04, 36.11, -0.02, 0.07] },
-  { name: 'Khadra',           displayName: 'Khadra, Mostaganem, Algérie',                  lat: 35.9892, lon: 0.0203, boundingBox: [35.96, 36.02, -0.02, 0.07] },
-  { name: 'Ouled Maallah',    displayName: 'Ouled Maallah, Mostaganem, Algérie',           lat: 35.8253, lon: 0.2094, boundingBox: [35.79, 35.86, 0.16, 0.26] },
-  { name: 'Oued El Kheir',    displayName: 'Oued El Kheir, Mostaganem, Algérie',           lat: 35.9592, lon: 0.1739, boundingBox: [35.93, 35.99, 0.14, 0.21] },
+// ── Algeria instant suggestions (Mostaganem + Relizane + Algiers) ──
+const ALGERIA_AREAS: GeoSuggestion[] = [
+  // Mostaganem areas
+  { name: 'Mostaganem',    displayName: 'Mostaganem, Wilaya de Mostaganem, Algérie',  lat: 35.9317, lon: 0.0892,  boundingBox: [35.88, 35.97, 0.03,  0.16]  },
+  { name: 'Tijditt',       displayName: 'Tijditt, Mostaganem, Algérie',               lat: 35.9278, lon: 0.0978,  boundingBox: [35.91, 35.95, 0.07,  0.13]  },
+  { name: 'Stidia',        displayName: 'Stidia, Mostaganem, Algérie',                lat: 35.8568, lon: 0.0292,  boundingBox: [35.83, 35.88, 0.00,  0.07]  },
+  { name: 'Mesra',         displayName: 'Mesra, Mostaganem, Algérie',                 lat: 35.8892, lon: 0.1156,  boundingBox: [35.86, 35.92, 0.08,  0.16]  },
+  { name: 'Aïn Tédelès',   displayName: 'Aïn Tédelès, Mostaganem, Algérie',          lat: 36.0050, lon: 0.3067,  boundingBox: [35.97, 36.04, 0.27,  0.35]  },
+  { name: 'Hassi Mamèche', displayName: 'Hassi Mamèche, Mostaganem, Algérie',         lat: 35.9439, lon: 0.2442,  boundingBox: [35.91, 35.98, 0.20,  0.29]  },
+  { name: 'Sidi Ali',      displayName: 'Sidi Ali, Mostaganem, Algérie',              lat: 36.1031, lon: 0.4539,  boundingBox: [36.07, 36.14, 0.41,  0.50]  },
+  { name: 'Kheireddine',   displayName: 'Kheireddine, Mostaganem, Algérie',           lat: 36.0522, lon: 0.2047,  boundingBox: [36.02, 36.09, 0.16,  0.25]  },
+  { name: 'Tazgaït',       displayName: 'Tazgaït, Mostaganem, Algérie',              lat: 35.9731, lon: 0.1458,  boundingBox: [35.94, 36.01, 0.10,  0.19]  },
+  // Relizane areas
+  { name: 'Relizane',      displayName: 'Relizane, Wilaya de Relizane, Algérie',      lat: 35.7343, lon: 0.5568,  boundingBox: [35.68, 35.79, 0.49,  0.63]  },
+  { name: 'Hay El Badr',   displayName: 'Hay El Badr, Relizane, Algérie',             lat: 35.7420, lon: 0.5750,  boundingBox: [35.72, 35.76, 0.55,  0.60]  },
+  { name: 'Sidi Khettab',  displayName: 'Sidi Khettab, Relizane, Algérie',            lat: 35.7200, lon: 0.5500,  boundingBox: [35.70, 35.74, 0.53,  0.57]  },
+  { name: 'Oued Rhiou',    displayName: 'Oued Rhiou, Relizane, Algérie',              lat: 35.9606, lon: 0.9197,  boundingBox: [35.93, 35.99, 0.89,  0.95]  },
+  // Algiers
+  { name: 'Algiers',       displayName: 'Alger, Algérie',                             lat: 36.7372, lon: 3.0869,  boundingBox: [36.69, 36.80, 2.98,  3.18]  },
+  { name: 'Hydra',         displayName: 'Hydra, Alger, Algérie',                      lat: 36.7510, lon: 3.0490,  boundingBox: [36.74, 36.76, 3.03,  3.07]  },
+  { name: 'Bab El Oued',   displayName: 'Bab El Oued, Alger, Algérie',               lat: 36.7917, lon: 3.0500,  boundingBox: [36.78, 36.80, 3.03,  3.07]  },
 ];
 
 // ── Nominatim helper functions ──
 async function fetchGeoSuggestions(query: string): Promise<GeoSuggestion[]> {
   if (!query || query.trim().length < 2) return [];
   const q = query.trim().toLowerCase();
-  // Instant local matches for Mostaganem areas
-  const localMatches = MOSTAGANEM_AREAS.filter(a =>
+  const localMatches = ALGERIA_AREAS.filter(a =>
     a.name.toLowerCase().includes(q) || a.displayName.toLowerCase().includes(q)
   ).slice(0, 3);
   try {
@@ -96,7 +89,6 @@ async function fetchGeoSuggestions(query: string): Promise<GeoSuggestion[]> {
       lon: parseFloat(item.lon),
       boundingBox: item.boundingbox.map(parseFloat) as [number, number, number, number],
     }));
-    // Merge local + Nominatim (deduplicate by proximity)
     const merged = [...localMatches];
     for (const nr of nominatimResults) {
       const isDupe = merged.some(m =>
@@ -106,16 +98,8 @@ async function fetchGeoSuggestions(query: string): Promise<GeoSuggestion[]> {
     }
     return merged.slice(0, 6);
   } catch {
-    return localMatches; // offline fallback
+    return localMatches;
   }
-}
-
-function radiusFromBBox(bb: [number, number, number, number]): number {
-  const [minLat, maxLat, minLon, maxLon] = bb;
-  const centerLat = (minLat + maxLat) / 2;
-  const centerLon = (minLon + maxLon) / 2;
-  const cornerDist = calculateDistance(centerLat, centerLon, maxLat, maxLon);
-  return Math.max(cornerDist, 1);
 }
 
 function zoomFromBBox(bb: [number, number, number, number]): number {
@@ -136,38 +120,39 @@ export default function SearchScreen() {
   const [availableNowOnly, setAvailableNowOnly] = useState(false);
   const [sitters, setSitters] = useState<MockSitter[]>(MOCK_SITTERS);
   const [showFilters, setShowFilters] = useState(false);
-  // Enhanced search center
+
   const [searchCenter, setSearchCenter] = useState<{
     lat: number; lon: number; name: string;
     boundingBox: [number, number, number, number];
     radiusKm: number;
   } | null>(null);
+
+  const [committedResultCount, setCommittedResultCount] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<GeoSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
-  const [noLocationFound, setNoLocationFound] = useState(false);
+  const [searchNotFound, setSearchNotFound] = useState(false);
   const pendingSubmitRef = useRef(false);
-  // Filter state
+
   const [minRating, setMinRating] = useState(0);
   const [maxPrice, setMaxPrice] = useState(0);
   const [maxDistanceKm, setMaxDistanceKm] = useState(0);
-  // Pending filter state
+
   const [pendingMinRating, setPendingMinRating] = useState(0);
   const [pendingMaxPrice, setPendingMaxPrice] = useState(0);
   const [pendingMaxDist, setPendingMaxDist] = useState(0);
   const [pendingVerified, setPendingVerified] = useState(false);
   const [pendingAvailNow, setPendingAvailNow] = useState(false);
+
   const gridCols = isDesktop ? 3 : isTablet ? 2 : 1;
   const { height: SCREEN_H } = Dimensions.get('window');
   const listMapHeight = Math.round(SCREEN_H * 0.38);
-  const fullMapHeight = SCREEN_H - insets.top - 68;
-  const mapHeight = mode === 'map' ? fullMapHeight : listMapHeight;
+
   const favoriteIds = useFavoritesStore(s => s.ids);
   const toggleFavorite = useFavoritesStore(s => s.toggle);
   const hydrateFavorites = useFavoritesStore(s => s.hydrate);
 
-  // ── Live sitters from DB ──
   const [liveSitters, setLiveSitters] = useState<Array<{
     id: string; firstName: string; lastName: string; photo: string | null;
     lat: number; lon: number; neighborhood: string;
@@ -179,7 +164,6 @@ export default function SearchScreen() {
 
   useEffect(() => { hydrateFavorites(); }, [hydrateFavorites]);
 
-  // Fetch mock sitters + try to get user location
   useEffect(() => {
     fetchSitters().then(async (list) => {
       setSitters(list);
@@ -189,15 +173,10 @@ export default function SearchScreen() {
           setUserLocation({ lat: loc.latitude, lon: loc.longitude });
           setSitters(applyRealDistances(list, loc.latitude, loc.longitude));
         }
-      } catch {
-        // Location denied or unavailable — map will still render with default center
-      }
-    }).catch(() => {
-      // Silent fail — map will still show
-    });
+      } catch {}
+    }).catch(() => {});
   }, []);
 
-  // Fetch live sitters from DB
   useEffect(() => {
     const fetchLiveSitters = async () => {
       const { data } = await supabase
@@ -233,55 +212,72 @@ export default function SearchScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  // Debounced Nominatim search
+  // Fixed debounce useEffect (Fix 1)
   useEffect(() => {
     const q = query.trim();
     if (!q) {
       setSuggestions([]);
       setShowSuggestions(false);
-      setNoLocationFound(false);
+      setLoadingSuggestions(false);
       return;
     }
-    if (searchCenter?.name.toLowerCase() === q.toLowerCase()) return;
+    if (searchCenter?.name.toLowerCase() === q.toLowerCase()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    if (q.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
     setLoadingSuggestions(true);
     const timer = setTimeout(async () => {
-      const results = await fetchGeoSuggestions(q);
-      setSuggestions(results);
-      setShowSuggestions(results.length > 0);
+      const found = await fetchGeoSuggestions(q);
+      setSuggestions(found);
+      setShowSuggestions(found.length > 0);
       setLoadingSuggestions(false);
-      setNoLocationFound(results.length === 0);
-      if (pendingSubmitRef.current && results.length > 0) {
+      if (pendingSubmitRef.current) {
         pendingSubmitRef.current = false;
-        selectCity(results[0]);
-      } else if (pendingSubmitRef.current && results.length === 0) {
-        pendingSubmitRef.current = false;
+        if (found.length > 0) {
+          selectCity(found[0]);
+        } else {
+          setSearchNotFound(true);
+        }
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, searchCenter]);
 
   const selectCity = (suggestion: GeoSuggestion) => {
     Keyboard.dismiss();
     pendingSubmitRef.current = false;
-    setNoLocationFound(false);
-    const radiusKm = radiusFromBBox(suggestion.boundingBox);
-    setSearchCenter({
+    setSearchNotFound(false);
+    const [minLat, maxLat, minLon, maxLon] = suggestion.boundingBox;
+    const newCenter = {
       lat: suggestion.lat,
       lon: suggestion.lon,
       name: suggestion.name,
       boundingBox: suggestion.boundingBox,
-      radiusKm,
-    });
+      radiusKm: 0,
+    };
+    setSearchCenter(newCenter);
     setQuery(suggestion.name);
     setSuggestions([]);
     setShowSuggestions(false);
+
+    const count = sitters.filter(s =>
+      s.latitude >= minLat && s.latitude <= maxLat &&
+      s.longitude >= minLon && s.longitude <= maxLon
+    ).length;
+    setCommittedResultCount(count);
   };
 
   const activeFilterCount =
     (verifiedOnly ? 1 : 0) + (availableNowOnly ? 1 : 0) +
     (minRating > 0 ? 1 : 0) + (maxPrice > 0 ? 1 : 0) + (maxDistanceKm > 0 ? 1 : 0);
 
-  const hasActiveSearch = searchCenter !== null || noLocationFound;
+  const hasActiveSearch = searchCenter !== null || searchNotFound;
 
   const openFilters = () => {
     setPendingMinRating(minRating);
@@ -309,35 +305,45 @@ export default function SearchScreen() {
     setPendingAvailNow(false);
   };
 
-  // Combine live DB sitters + mock sitters for the map
+  // Fixed map markers (Fix 3)
   const mapMarkers = useMemo(() => {
-    const live = liveSitters.map(s => ({
-      latitude: s.lat,
-      longitude: s.lon,
-      title: `${s.firstName} ${s.lastName}`,
-      description: `${s.hourlyRate} DZD/hr`,
-      photoUrl: s.photo ?? undefined,
-      markerId: s.id,
-    }));
+    const bboxPredicate = searchCenter && !searchNotFound
+      ? (lat: number, lon: number) => {
+          const [minLat, maxLat, minLon, maxLon] = searchCenter.boundingBox;
+          return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+        }
+      : () => true;
+
+    const live = liveSitters
+      .filter(s => bboxPredicate(s.lat, s.lon))
+      .map(s => ({
+        latitude: s.lat,
+        longitude: s.lon,
+        title: `${s.firstName} ${s.lastName}`,
+        description: `${s.hourlyRate} DZD/hr`,
+        photoUrl: s.photo ?? undefined,
+        markerId: s.id,
+      }));
 
     const mock = sitters
-      .filter(s => s.availableNow)
+      .filter(s => bboxPredicate(s.latitude, s.longitude))
       .map(s => ({
         latitude: s.latitude,
         longitude: s.longitude,
         title: `${s.firstName} ${s.lastName}`,
         description: `${s.hourlyRate} DZD/hr`,
-        photoUrl: s.photo,
+        photoUrl: s.photo ?? undefined,
         markerId: s.uuid ?? String(s.id),
       }));
 
     return live.length > 0 ? live : mock;
-  }, [liveSitters, sitters]);
+  }, [liveSitters, sitters, searchCenter, searchNotFound]);
 
-  // Dynamic radius results
+  // Fixed results (Fix 1)
   const results = useMemo<MockSitter[]>(() => {
-    if (noLocationFound) return [];
+    if (searchNotFound) return [];
     if (!searchCenter) return [];
+    const [minLat, maxLat, minLon, maxLon] = searchCenter.boundingBox;
     return sitters
       .map(s => ({
         ...s,
@@ -346,7 +352,8 @@ export default function SearchScreen() {
         ) / 10,
       }))
       .filter(s => {
-        if (s.distanceKm > searchCenter.radiusKm) return false;
+        if (s.latitude < minLat || s.latitude > maxLat) return false;
+        if (s.longitude < minLon || s.longitude > maxLon) return false;
         if (verifiedOnly && !s.identityVerified) return false;
         if (availableNowOnly && !s.availableNow) return false;
         if (minRating > 0 && s.averageRating < minRating) return false;
@@ -361,12 +368,11 @@ export default function SearchScreen() {
           default:         return a.distanceKm - b.distanceKm;
         }
       });
-  }, [sitters, searchCenter, noLocationFound, sort, verifiedOnly, availableNowOnly, minRating, maxPrice]);
+  }, [sitters, searchCenter, searchNotFound, sort, verifiedOnly, availableNowOnly, minRating, maxPrice]);
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
       {isVisitor && <VisitorBanner />}
-      {/* Search bar — fixed at top */}
       <View style={s.searchRow}>
         <View style={s.searchBar}>
           <Ionicons name="search" size={18} color="#9CA3AF" />
@@ -376,7 +382,6 @@ export default function SearchScreen() {
             placeholder="Search city or area..."
             placeholderTextColor="#9CA3AF"
             style={s.searchInput}
-            accessibilityLabel="Search"
             returnKeyType="search"
             onSubmitEditing={() => {
               if (suggestions.length > 0) {
@@ -392,6 +397,8 @@ export default function SearchScreen() {
                 setQuery('');
                 setSuggestions([]);
                 setShowSuggestions(false);
+                setLoadingSuggestions(false);
+                setSearchNotFound(false);
               }}
               hitSlop={8}
             >
@@ -399,26 +406,22 @@ export default function SearchScreen() {
             </TouchableOpacity>
           )}
         </View>
-        {/* Filter button visible only in list mode */}
-        {mode === 'list' && (
-          <TouchableOpacity
-            style={s.filterBtn}
-            activeOpacity={0.8}
-            onPress={openFilters}
-            accessibilityRole="button"
-            accessibilityLabel={`Filters, ${activeFilterCount} active`}
-          >
-            <Ionicons name="options" size={18} color="#FFFFFF" />
-            {activeFilterCount > 0 ? (
-              <View style={s.filterBadge}>
-                <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={s.filterBtn}
+          activeOpacity={0.8}
+          onPress={openFilters}
+          accessibilityRole="button"
+          accessibilityLabel={`Filters, ${activeFilterCount} active`}
+        >
+          <Ionicons name="options" size={18} color="#FFFFFF" />
+          {activeFilterCount > 0 && (
+            <View style={s.filterBadge}>
+              <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
-      {/* Nominatim suggestions dropdown */}
       {showSuggestions && (
         <View style={s.suggestionsBox}>
           {loadingSuggestions ? (
@@ -452,11 +455,11 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {/* Always render the map — no more loading gate */}
-      <View style={[
-        mode === 'map' ? s.mapExpanded : [s.map, { height: mapHeight }],
-        { marginTop: 6 }
-      ]}>
+      <View style={
+        mode === 'map'
+          ? { flex: 1, marginHorizontal: 12, marginBottom: 12, borderRadius: 20, overflow: 'hidden', marginTop: 6 }
+          : { height: listMapHeight, marginHorizontal: 12, marginTop: 6, borderRadius: 20, overflow: 'hidden' }
+      }>
         <Map
           markers={mapMarkers}
           center={
@@ -471,51 +474,22 @@ export default function SearchScreen() {
           }
           showUserLocation={true}
           zoom={searchCenter ? zoomFromBBox(searchCenter.boundingBox) : 12}
-          height={mapHeight}
+          height={mode === 'map' ? '100%' : listMapHeight}
           onMarkerPress={(marker: MapLocation) => {
-            // Try live sitters first
             const liveSitter = liveSitters.find(s => s.id === marker.markerId);
-            if (liveSitter) {
-              setSelectedSitter(liveSitter);
-              setShowPopup(true);
-              return;
-            }
-            // Fallback to mock sitters
-            const mockSitter = sitters.find(s =>
-              (s.uuid ?? String(s.id)) === marker.markerId
-            );
-            if (mockSitter) {
-              router.push({ pathname: '/sitter/[id]', params: { id: mockSitter.uuid ?? String(mockSitter.id) } });
-            }
+            if (liveSitter) { setSelectedSitter(liveSitter); setShowPopup(true); return; }
+            const mockSitter = sitters.find(s => (s.uuid ?? String(s.id)) === marker.markerId);
+            if (mockSitter) router.push({ pathname: '/sitter/[id]', params: { id: mockSitter.uuid ?? String(mockSitter.id) } });
           }}
         />
 
-        {/* Filter button overlaid on map (only in map mode) */}
-        {mode === 'map' && (
-          <TouchableOpacity
-            style={s.mapFilterOverlay}
-            onPress={openFilters}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ''}`}
-          >
-            <Ionicons name="options" size={18} color="#FFFFFF" />
-            {activeFilterCount > 0 && (
-              <View style={s.filterBadge}>
-                <Text style={s.filterBadgeText}>{activeFilterCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Unified Map Bottom Bar */}
         <View style={s.mapBottomBar}>
           <View style={s.mapPill}>
             <Ionicons name="location" size={14} color={Colors.light.primary} />
             <Text style={s.mapPillText} numberOfLines={1}>
-              {hasActiveSearch
-                ? `${results.length} résultat${results.length !== 1 ? 's' : ''} à proximité`
-                : 'Recherchez une ville'}
+              {committedResultCount !== null
+                ? ` ${committedResultCount} bsitter${committedResultCount !== 1 ? 's' : ''} found`
+                : 'Search a location'}
             </Text>
           </View>
           <View style={s.viewToggle}>
@@ -523,8 +497,6 @@ export default function SearchScreen() {
               style={[s.viewToggleItem, mode === 'list' && s.viewToggleActive]}
               onPress={() => setMode('list')}
               activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="List view"
             >
               <Ionicons name="list" size={14} color={mode === 'list' ? '#FFFFFF' : Colors.light.text} />
               <Text style={[s.viewToggleText, mode === 'list' && { color: '#FFFFFF' }]}>List</Text>
@@ -533,8 +505,6 @@ export default function SearchScreen() {
               style={[s.viewToggleItem, mode === 'map' && s.viewToggleActive]}
               onPress={() => setMode('map')}
               activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Map view"
             >
               <Ionicons name="map" size={14} color={mode === 'map' ? '#FFFFFF' : Colors.light.text} />
               <Text style={[s.viewToggleText, mode === 'map' && { color: '#FFFFFF' }]}>Map</Text>
@@ -543,7 +513,6 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      {/* List content — only shown when in list mode */}
       {mode === 'list' && (
         <ScrollView
           style={{ flex: 1 }}
@@ -626,7 +595,7 @@ export default function SearchScreen() {
         </ScrollView>
       )}
 
-      {/* Filter modal */}
+      {/* Filter Modal - Full Content */}
       <Modal
         visible={showFilters}
         transparent
@@ -731,7 +700,7 @@ export default function SearchScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Sitter map popup ── */}
+      {/* Popup Modal - Full Content */}
       <Modal
         visible={showPopup}
         transparent
@@ -830,7 +799,6 @@ export default function SearchScreen() {
   );
 }
 
-/* RowCard and TinyChip */
 function RowCard({
   sitter, onPress, isFavorite, onToggleFavorite,
 }: {
@@ -948,34 +916,12 @@ const s = StyleSheet.create({
     borderWidth: 2, borderColor: '#FFFFFF',
   },
   filterBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
-  map: {
-    marginHorizontal: 20,
-    marginTop: 8,
-    borderRadius: 14,
-    backgroundColor: '#DEF1EE',
-    overflow: 'hidden',
-  },
   mapExpanded: {
     flex: 1,
-    position: 'relative',
-    marginTop: 6,
-  },
-  mapFilterOverlay: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 46,
-    height: 46,
-    borderRadius: 13,
-    backgroundColor: Colors.light.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    overflow: 'hidden',
+    borderRadius: 20,
+    marginHorizontal: 12,
+    marginBottom: 12,
   },
   mapBottomBar: {
     position: 'absolute',
