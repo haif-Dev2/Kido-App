@@ -124,7 +124,7 @@ const ir = StyleSheet.create({
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function JobDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, initialStatus } = useLocalSearchParams<{ id: string; initialStatus?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -153,12 +153,12 @@ export default function JobDetailScreen() {
     async function load() {
       setLoading(true);
 
-      // Mock IDs — show a placeholder detail screen
-      if (id && typeof id === 'string' && id.startsWith('mock-')) {
+      // Mock IDs — use initialStatus passed from navigation
+      if (id && typeof id === 'string' && (id.startsWith('mock-') || id.startsWith('req-'))) {
         setJob({
           id,
-          code: id.replace('mock-req-', 'REQ-00'),
-          status: 'PENDING',
+          code: id.replace('mock-req-', 'REQ-00').replace('req-', 'REQ-00'),
+          status: initialStatus ?? 'PENDING',
           startDate: new Date(Date.now() + 3 * 3600000).toISOString(),
           endDate: new Date(Date.now() + 6 * 3600000).toISOString(),
           durationHours: 3,
@@ -216,15 +216,58 @@ export default function JobDetailScreen() {
             parentRating: pd.avg_rating ?? 0,
             parentBookingCount: pd.rating_count ?? 0,
           });
+        } else if (initialStatus) {
+          // Fallback when DB fetch fails but we have status from navigation
+          setJob({
+            id: String(id),
+            code: String(id).slice(0, 8).toUpperCase(),
+            status: initialStatus,
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 3 * 3600000).toISOString(),
+            durationHours: 3,
+            totalPrice: 2400,
+            createdAt: new Date().toISOString(),
+            childrenCount: 2,
+            childrenAges: [3, 6],
+            specialNotes: null,
+            parentId: '',
+            parentName: 'Parent',
+            parentPhoto: null,
+            parentPhone: null,
+            parentRating: 0,
+            parentBookingCount: 0,
+          });
         }
       } catch (e) {
         console.warn('[job detail] load error:', e);
+        // Fallback using initialStatus if available
+        if (initialStatus) {
+          setJob({
+            id: String(id),
+            code: String(id).slice(0, 8).toUpperCase(),
+            status: initialStatus,
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 3 * 3600000).toISOString(),
+            durationHours: 3,
+            totalPrice: 2400,
+            createdAt: new Date().toISOString(),
+            childrenCount: 2,
+            childrenAges: [3, 6],
+            specialNotes: null,
+            parentId: '',
+            parentName: 'Parent',
+            parentPhoto: null,
+            parentPhone: null,
+            parentRating: 0,
+            parentBookingCount: 0,
+          });
+        }
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [id]);
+  }, [id, initialStatus]);
 
   if (loading) {
     return (
@@ -247,7 +290,7 @@ export default function JobDetailScreen() {
   }
 
   const cfg = STATUS_CONFIG[job.status] ?? STATUS_CONFIG.PENDING;
-  const isActive = ['CONFIRMED', 'IN_PROGRESS'].includes(job.status);
+  const isActive = ['CONFIRMED', 'IN_PROGRESS'].includes(String(job.status));
 
   // Format children ages
   const agesLabel = job.childrenAges && job.childrenAges.length > 0
@@ -338,44 +381,6 @@ export default function JobDetailScreen() {
                 )}
               </View>
             </View>
-
-            {/* Chat + Call buttons — only on active jobs */}
-            {isActive && (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity
-                  style={s.iconActionBtn}
-                  onPress={() => {
-                    haptics.light();
-                    router.push({
-                      pathname: '/chat/[sitterId]' as any,
-                      params: {
-                        sitterId: job.parentId,
-                        sitterName: job.parentName,
-                        sitterAvatar: job.parentPhoto ?? '',
-                        bookingId: job.id,
-                      },
-                    });
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="chatbubble-outline" size={18} color={PRIMARY} />
-                </TouchableOpacity>
-                {job.parentPhone && (
-                  <TouchableOpacity
-                    style={s.iconActionBtn}
-                    onPress={() => {
-                      haptics.light();
-                      Linking.openURL(`tel:${job.parentPhone!.replace(/\s/g, '')}`).catch(() =>
-                        Alert.alert('Cannot call', 'Unable to open the phone app.')
-                      );
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="call-outline" size={18} color={PRIMARY} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
           </View>
         </Section>
 
@@ -426,6 +431,63 @@ export default function JobDetailScreen() {
             })}
           </Text>
         </Animated.View>
+
+        {/* ── Actions at bottom — only for confirmed/in-progress ── */}
+        {isActive && (
+          <Animated.View
+            entering={FadeInDown.duration(340).delay(260)}
+            style={{ marginHorizontal: 16, marginTop: 20, gap: 10 }}
+          >
+            {/* Chat + Call side by side */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1, flexDirection: 'row', alignItems: 'center',
+                  justifyContent: 'center', gap: 8,
+                  backgroundColor: '#E1F5EE', borderRadius: 14, paddingVertical: 15,
+                }}
+                onPress={() => {
+                  haptics.light();
+                  router.push({
+                    pathname: '/chat/[sitterId]' as any,
+                    params: {
+                      sitterId: job.parentId,
+                      sitterName: job.parentName,
+                      sitterAvatar: job.parentPhoto ?? '',
+                      bookingId: job.id,
+                    },
+                  });
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="chatbubble-outline" size={18} color={PRIMARY} />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: PRIMARY }}>Message</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flex: 1, flexDirection: 'row', alignItems: 'center',
+                  justifyContent: 'center', gap: 8,
+                  backgroundColor: '#E1F5EE', borderRadius: 14, paddingVertical: 15,
+                }}
+                onPress={() => {
+                  haptics.light();
+                  if (!job.parentPhone) {
+                    Alert.alert('Not available', 'No phone number on file for this parent.');
+                    return;
+                  }
+                  Linking.openURL(`tel:${job.parentPhone.replace(/\s/g, '')}`).catch(() =>
+                    Alert.alert('Cannot call', 'Unable to open the phone app.')
+                  );
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="call-outline" size={18} color={PRIMARY} />
+                <Text style={{ fontSize: 15, fontWeight: '700', color: PRIMARY }}>Call</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
       </ScrollView>
 
       {/* ── Fixed bottom actions ── */}
@@ -529,13 +591,6 @@ const s = StyleSheet.create({
   ratingBadgeText: { fontSize: 9, fontWeight: '800', color: '#FFFFFF' },
   parentName: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
   parentRatingText: { fontSize: 12, fontWeight: '600', color: '#374151', marginLeft: 3 },
-
-  // Icon action buttons (chat/call)
-  iconActionBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: '#E1F5EE',
-    alignItems: 'center', justifyContent: 'center',
-  },
 
   // Info card
   infoCard: {

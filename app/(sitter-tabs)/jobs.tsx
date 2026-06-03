@@ -147,13 +147,27 @@ export default function JobsTab() {
     haptics.medium();
     setActionLoading(job.id);
     try {
-      await supabase.from('bookings').update({ status: 'CONFIRMED' }).eq('id', job.id);
+      // Skip Supabase for mock/fallback jobs
+      if (!job.id.startsWith('mock-') && !job.id.startsWith('req-')) {
+        const { error } = await supabase
+          .from('bookings')
+          .update({ status: 'CONFIRMED' })
+          .eq('id', job.id);
+        if (error) {
+          Alert.alert('Error', 'Could not confirm booking. Please try again.');
+          setActionLoading(null);
+          return;
+        }
+      }
       setJobs((prev) =>
         prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.CONFIRMED } : j))
       );
       haptics.success();
-      Alert.alert('Accepted', `Booking confirmed for ${job.parentName}.`);
-    } catch {} finally {
+      setActiveTab('upcoming');
+      Alert.alert('✅ Booking accepted', `Confirmed for ${job.parentName}.`, [{ text: 'Got it' }]);
+    } catch (e) {
+      Alert.alert('Error', 'Could not confirm booking. Please try again.');
+    } finally {
       setActionLoading(null);
     }
   };
@@ -167,7 +181,13 @@ export default function JobsTab() {
         style: 'destructive',
         onPress: async () => {
           setActionLoading(job.id);
-          await supabase.from('bookings').update({ status: 'DECLINED' }).eq('id', job.id);
+          if (!job.id.startsWith('mock-') && !job.id.startsWith('req-')) {
+            const { error } = await supabase.from('bookings').update({ status: 'DECLINED' }).eq('id', job.id);
+            if (error) {
+              setActionLoading(null);
+              return;
+            }
+          }
           setJobs((prev) =>
             prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.DECLINED } : j))
           );
@@ -189,7 +209,13 @@ export default function JobsTab() {
           style: 'destructive',
           onPress: async () => {
             setActionLoading(job.id);
-            await supabase.from('bookings').update({ status: 'CANCELLED' }).eq('id', job.id);
+            if (!job.id.startsWith('mock-') && !job.id.startsWith('req-')) {
+              const { error } = await supabase.from('bookings').update({ status: 'CANCELLED' }).eq('id', job.id);
+              if (error) {
+                setActionLoading(null);
+                return;
+              }
+            }
             setJobs((prev) =>
               prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.CANCELLED } : j))
             );
@@ -208,7 +234,13 @@ export default function JobsTab() {
         text: 'Complete',
         onPress: async () => {
           setActionLoading(job.id);
-          await supabase.from('bookings').update({ status: 'COMPLETED' }).eq('id', job.id);
+          if (!job.id.startsWith('mock-') && !job.id.startsWith('req-')) {
+            const { error } = await supabase.from('bookings').update({ status: 'COMPLETED' }).eq('id', job.id);
+            if (error) {
+              setActionLoading(null);
+              return;
+            }
+          }
           setJobs((prev) =>
             prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.COMPLETED } : j))
           );
@@ -383,34 +415,6 @@ export default function JobsTab() {
                           {job.totalPrice.toLocaleString()} DZD
                         </Text>
 
-                        {/* Chat button */}
-                        {(job.status === BookingStatus.PENDING ||
-                          job.status === BookingStatus.CONFIRMED ||
-                          job.status === BookingStatus.IN_PROGRESS) && (
-                          <TouchableOpacity
-                            style={{
-                              flexDirection: 'row', alignItems: 'center', gap: 4,
-                              backgroundColor: '#E1F5EE', paddingHorizontal: 10,
-                              paddingVertical: 5, borderRadius: 99,
-                            }}
-                            onPress={() => {
-                              haptics.light();
-                              router.push({
-                                pathname: '/chat/[sitterId]' as any,
-                                params: {
-                                  sitterId: job.parentId,
-                                  sitterName: job.parentName,
-                                  sitterAvatar: job.parentPhoto ?? '',
-                                  bookingId: job.id,
-                                },
-                              });
-                            }}
-                            activeOpacity={0.8}
-                          >
-                            <Ionicons name="chatbubble-outline" size={12} color={PRIMARY} />
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: PRIMARY }}>Chat</Text>
-                          </TouchableOpacity>
-                        )}
                       </View>
                     </View>
                   </View>
