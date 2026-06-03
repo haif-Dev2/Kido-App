@@ -32,7 +32,7 @@ try {
   WebView = require('react-native-webview').WebView;
 } catch { /* web fallback */ }
 
-// ─── Build Leaflet HTML (Simple stable zoom) ─────────────
+// ─── Build Leaflet HTML (Custom Canvas Version - Restored) ─────────────
 function buildLeafletHTML(
   mapCenter: MapLocation,
   userDot: MapLocation | null,
@@ -413,7 +413,10 @@ export function Map({
   const html = buildLeafletHTML(effectiveCenter, userDot, markers, zoom);
 
   return (
-    <View style={[{ height }, style]}>
+    <View style={[
+      typeof height === 'string' ? { flex: 1 } : { height },
+      style
+    ]}>
       <WebView
         ref={webViewRef}
         originWhitelist={['*']}
