@@ -164,6 +164,7 @@ export default function SearchScreen() {
   const [noLocationFound, setNoLocationFound] = useState(false);
 
   const pendingSubmitRef = useRef(false);
+  const committedSearchNameRef = useRef<string>('');
 
   const [minRating, setMinRating] = useState(0);
   const [maxPrice, setMaxPrice] = useState(0);
@@ -216,7 +217,7 @@ export default function SearchScreen() {
       return;
     }
 
-    if (searchCenter?.name.toLowerCase() === q.toLowerCase() && !noLocationFound) {
+    if (committedSearchNameRef.current === q.toLowerCase() && !noLocationFound) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -251,6 +252,8 @@ export default function SearchScreen() {
   const selectCity = (suggestion: GeoSuggestion) => {
     Keyboard.dismiss();
     pendingSubmitRef.current = false;
+    setNoLocationFound(false);
+    committedSearchNameRef.current = suggestion.name.toLowerCase();
     setSearchCenter({
       lat: suggestion.lat,
       lon: suggestion.lon,

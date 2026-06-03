@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView, StyleSheet,
   Text,
@@ -39,6 +40,7 @@ const STATUS_CONFIG: Record<BookingStatus, { label: string; icon: string; color:
   [BookingStatus.COMPLETED]:   { label: 'Completed',  icon: '✓',  color: '#6B7280', bg: '#F3F4F6' },
   [BookingStatus.CANCELLED]:   { label: 'Cancelled',  icon: '✕',  color: '#DC2626', bg: '#FEE2E2' },
   [BookingStatus.DECLINED]:    { label: 'Declined',   icon: '✕',  color: '#DC2626', bg: '#FEE2E2' },
+  [BookingStatus.UNAVAILABLE]: { label: 'On hold',    icon: '⏸',  color: '#6B7280', bg: '#F3F4F6' },
 };
 
 function formatDate(iso: string) {
@@ -227,7 +229,12 @@ export default function BookingsScreen() {
         ) : gridCols === 1 ? (
           <View style={{ gap: 12 }}>
             {filtered.map(booking => (
-              <BookingCard key={String(booking.id)} booking={booking} router={router} />
+              <BookingCard 
+                key={String(booking.id)} 
+                booking={booking} 
+                router={router}
+                onRefresh={() => loadBookings(true)}
+              />
             ))}
           </View>
         ) : (
@@ -237,7 +244,11 @@ export default function BookingsScreen() {
                 key={String(booking.id)}
                 style={{ width: `${100 / gridCols}%`, paddingHorizontal: 6, paddingBottom: 12 }}
               >
-                <BookingCard booking={booking} router={router} />
+                <BookingCard 
+                  booking={booking} 
+                  router={router}
+                  onRefresh={() => loadBookings(true)}
+                />
               </View>
             ))}
           </View>
@@ -263,44 +274,133 @@ function StatPill({
   );
 }
 
-function BookingCard({ booking, router }: { booking: MockBooking; router: any }) {
+function BookingCard({ booking, router, onRefresh }: { booking: MockBooking; router: any; onRefresh: () => void }) {
   const cfg = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG[BookingStatus.PENDING];
   const timeRange = `${formatTime(booking.startDate)}–${formatTime(booking.endDate)}`;
 
+  const handleCancel = () => {
+    haptics.warning();
+    Alert.alert(
+      'Cancel this booking?',
+      'The sitter will be notified immediately.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Cancel booking',
+          style: 'destructive',
+          onPress: async () => {
+            haptics.medium();
+            await supabase
+              .from('bookings')
+              .update({ status: 'CANCELLED' })
+              .eq('id', booking.id);
+            onRefresh();
+          },
+        },
+      ]
+    );
+  };
+
+  const isCancellable =
+    booking.status === BookingStatus.PENDING ||
+    booking.status === BookingStatus.CONFIRMED;
+
+  const isCompleted = booking.status === BookingStatus.COMPLETED;
+  const isEnded =
+    booking.status === BookingStatus.DECLINED ||
+    booking.status === BookingStatus.CANCELLED;
+
   return (
     <View style={s.card}>
+      {/* ── Zone 1: Sitter + status ── */}
       <View style={s.cardTop}>
-        <Image source={{ uri: booking.sitterPhoto }} style={s.avatar} contentFit="cover" transition={200} />
+        <Image
+          source={{ uri: booking.sitterPhoto }}
+          style={s.avatar}
+          contentFit="cover"
+          transition={200}
+        />
         <View style={s.cardInfo}>
           <Text style={s.sitterName} numberOfLines={1}>{booking.sitterName}</Text>
-          <Text style={s.bookingCode}>Booking #{booking.code}</Text>
+          <Text style={s.bookingCode}>#{booking.code}</Text>
         </View>
         <View style={[s.statusBadge, { backgroundColor: cfg.bg }]}>
           <Text style={[s.statusText, { color: cfg.color }]}>{cfg.icon} {cfg.label}</Text>
         </View>
       </View>
 
-      <View style={s.dateRow}>
-        <View style={s.dateItem}>
-          <Ionicons name="calendar-outline" size={14} color="#9CA3AF" />
-          <Text style={s.dateText} numberOfLines={1}>{formatDate(booking.startDate)}</Text>
+      {/* ── Zone 2: Date · time · price ── */}
+      <View style={s.midRow}>
+        <View style={s.midLeft}>
+          <View style={s.dateItem}>
+            <Ionicons name="calendar-outline" size={13} color="#9CA3AF" />
+            <Text style={s.dateText} numberOfLines={1}>{formatDate(booking.startDate)}</Text>
+          </View>
+          <View style={s.dateItem}>
+            <Ionicons name="time-outline" size={13} color="#9CA3AF" />
+            <Text style={s.dateText}>{timeRange}</Text>
+          </View>
         </View>
-        <View style={s.dateItem}>
-          <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-          <Text style={s.dateText}>{timeRange}</Text>
-        </View>
+        <Text style={s.price}>{booking.totalPrice.toLocaleString()} DZD</Text>
       </View>
 
+      {/* ── Zone 3: Actions ── */}
       <View style={s.cardBottom}>
-        <Text style={s.price}>{booking.totalPrice} DZD</Text>
+        {/* Details always on the left */}
         <TouchableOpacity
           style={s.detailsBtn}
-          onPress={() => { haptics.light(); router.push({ pathname: '/booking/[id]', params: { id: String(booking.id) } }); }}
+          onPress={() => {
+            haptics.light();
+            router.push({ pathname: '/booking/[id]', params: { id: String(booking.id) } });
+          }}
           activeOpacity={0.7}
         >
           <Text style={s.detailsText}>Details</Text>
-          <Ionicons name="chevron-forward" size={14} color={Colors.light.primary} />
+          <Ionicons name="chevron-forward" size={13} color={Colors.light.primary} />
         </TouchableOpacity>
+
+        {/* Right button changes by status */}
+        {isCancellable && (
+          <TouchableOpacity
+            style={s.cancelBtn}
+            onPress={handleCancel}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close-circle-outline" size={14} color="#EF4444" />
+            <Text style={s.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+
+        {isCompleted && (
+          <TouchableOpacity
+            style={s.reviewBtn}
+            onPress={() => {
+              haptics.light();
+              router.push({
+                pathname: '/review/new/[bookingId]',
+                params: { bookingId: String(booking.id) },
+              });
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="star-outline" size={14} color="#059669" />
+            <Text style={s.reviewText}>Leave review</Text>
+          </TouchableOpacity>
+        )}
+
+        {isEnded && (
+          <TouchableOpacity
+            style={s.bookAgainBtn}
+            onPress={() => {
+              haptics.light();
+              router.push('/(tabs)/search');
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="refresh-outline" size={14} color="#6B7280" />
+            <Text style={s.bookAgainText}>Book again</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -368,21 +468,49 @@ const s = StyleSheet.create({
   statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   statusText: { fontSize: 12, fontWeight: '700' },
 
-  dateRow: { flexDirection: 'row', gap: 12, marginTop: 12, flexWrap: 'wrap' },
+  // Zone 2
+  midRow: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: '#F5F5F5',
+  },
+  midLeft: { gap: 4 },
   dateItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   dateText: { fontSize: 12, color: '#6B7280' },
+  price: { fontSize: 17, fontWeight: '800', color: Colors.light.primary },
 
+  // Zone 3
   cardBottom: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6',
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: '#F5F5F5',
   },
-  price: { fontSize: 18, fontWeight: '800', color: Colors.light.primary },
   detailsBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 999, backgroundColor: '#E6F4F5',
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999, backgroundColor: '#EEF9F8',
   },
   detailsText: { fontSize: 13, color: Colors.light.primary, fontWeight: '700' },
+  cancelBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999, backgroundColor: '#FEF2F2',
+  },
+  cancelText: { fontSize: 13, color: '#EF4444', fontWeight: '700' },
+  reviewBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999, backgroundColor: '#ECFDF5',
+  },
+  reviewText: { fontSize: 13, color: '#059669', fontWeight: '700' },
+  bookAgainBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999, backgroundColor: '#F3F4F6',
+  },
+  bookAgainText: { fontSize: 13, color: '#6B7280', fontWeight: '700' },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 8 },
   emptyIcon: {

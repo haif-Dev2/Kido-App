@@ -3,14 +3,14 @@ import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
@@ -28,6 +28,9 @@ type Job = {
   status: BookingStatus;
   parentName: string;
   parentPhoto: string | null;
+  parentId: string;
+  parentRating: number;
+  parentBookingCount: number;
   startDate: string;
   endDate: string;
   totalPrice: number;
@@ -48,11 +51,14 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string; label: string }> =
 // Fallback jobs shown when no real bookings exist in the database
 const FALLBACK_JOBS: Job[] = [
   {
-    id: 'req-1',
+    id: 'mock-req-1',
     code: 'REQ-001',
     status: BookingStatus.PENDING,
     parentName: 'Sarah B.',
     parentPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
+    parentId: 'mock-parent-1',
+    parentRating: 4.8,
+    parentBookingCount: 7,
     startDate: new Date(Date.now() + 3 * 3600000).toISOString(),
     endDate: new Date(Date.now() + 6 * 3600000).toISOString(),
     totalPrice: 2400,
@@ -61,11 +67,14 @@ const FALLBACK_JOBS: Job[] = [
     urgent: true,
   },
   {
-    id: 'req-2',
+    id: 'mock-req-2',
     code: 'REQ-002',
     status: BookingStatus.PENDING,
     parentName: 'Yasmine K.',
     parentPhoto: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
+    parentId: 'mock-parent-2',
+    parentRating: 4.5,
+    parentBookingCount: 3,
     startDate: new Date(Date.now() + 86400000).toISOString(),
     endDate: new Date(Date.now() + 86400000 + 4 * 3600000).toISOString(),
     totalPrice: 2200,
@@ -79,7 +88,7 @@ export default function JobsTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<JobTab>('requests');
-  const [jobs, setJobs] = useState<Job[]>(FALLBACK_JOBS); // ← Updated with fallback
+  const [jobs, setJobs] = useState<Job[]>(FALLBACK_JOBS);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -95,14 +104,16 @@ export default function JobsTab() {
       const { data } = await supabase
         .from('bookings')
         .select(`
-          id, code, status, start_date, end_date, total_price,
-          parent:profiles!parent_id(first_name, last_name, photo_url)
+          id, code, status, start_date, end_date, total_price, parent_id,
+          parent:profiles!parent_id(
+            id, first_name, last_name, photo_url,
+            parent_details(avg_rating, rating_count)
+          )
         `)
         .eq('babysitter_id', user.id)
         .order('start_date', { ascending: false })
         .limit(30);
 
-      // Only replace fallback when real data exists
       if (data && data.length > 0) {
         setJobs(
           data.map((b: any) => ({
@@ -112,14 +123,16 @@ export default function JobsTab() {
             startDate: b.start_date,
             endDate: b.end_date,
             totalPrice: b.total_price ?? 0,
+            parentId: b.parent_id ?? '',
             parentName: b.parent
               ? `${b.parent.first_name} ${b.parent.last_name}`.trim()
               : 'Parent',
             parentPhoto: b.parent?.photo_url ?? null,
+            parentRating: b.parent?.parent_details?.avg_rating ?? 0,
+            parentBookingCount: b.parent?.parent_details?.rating_count ?? 0,
           }))
         );
       }
-      // If data is empty → keep FALLBACK_JOBS
     } catch (e) {
       console.warn('[jobs] load error:', e);
     } finally {
@@ -162,6 +175,29 @@ export default function JobsTab() {
         },
       },
     ]);
+  };
+
+  const handleCancel = (job: Job) => {
+    haptics.warning();
+    Alert.alert(
+      'Cancel this booking?',
+      'The parent will be notified. This cannot be undone.',
+      [
+        { text: 'Keep it', style: 'cancel' },
+        {
+          text: 'Cancel booking',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(job.id);
+            await supabase.from('bookings').update({ status: 'CANCELLED' }).eq('id', job.id);
+            setJobs((prev) =>
+              prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.CANCELLED } : j))
+            );
+            setActionLoading(null);
+          },
+        },
+      ]
+    );
   };
 
   const handleComplete = (job: Job) => {
@@ -279,35 +315,55 @@ export default function JobsTab() {
               return (
                 <View key={job.id} style={s.jobCard}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 }}>
-                    <Image
-                      source={{
-                        uri: job.parentPhoto ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
+                    {/* Parent avatar — tappable to see profile info */}
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        haptics.light();
+                        Alert.alert(
+                          job.parentName,
+                          `Rating: ${job.parentRating > 0 ? `${job.parentRating.toFixed(1)} ⭐` : 'No rating yet'}\nBookings: ${job.parentBookingCount}`,
+                          [{ text: 'OK' }]
+                        );
                       }}
-                      style={{ width: 50, height: 50, borderRadius: 14 }}
-                      contentFit="cover"
-                    />
+                    >
+                      <View>
+                        <Image
+                          source={{ uri: job.parentPhoto ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' }}
+                          style={{ width: 50, height: 50, borderRadius: 14 }}
+                          contentFit="cover"
+                        />
+                        {/* Rating badge on avatar */}
+                        {job.parentRating > 0 && (
+                          <View style={{
+                            position: 'absolute', bottom: -4, right: -4,
+                            backgroundColor: '#F5A524', borderRadius: 99,
+                            paddingHorizontal: 4, paddingVertical: 1,
+                            flexDirection: 'row', alignItems: 'center', gap: 1,
+                            borderWidth: 1.5, borderColor: '#FFFFFF',
+                          }}>
+                            <Ionicons name="star" size={8} color="#FFFFFF" />
+                            <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>
+                              {job.parentRating.toFixed(1)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+
                     <View style={{ flex: 1 }}>
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <Text
-                          style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }}
-                          numberOfLines={1}
-                        >
-                          {job.parentName}
-                        </Text>
-                        <View
-                          style={{
-                            backgroundColor: config.bg,
-                            paddingHorizontal: 8,
-                            paddingVertical: 3,
-                            borderRadius: 99,
-                          }}
-                        >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }} numberOfLines={1}>
+                            {job.parentName}
+                          </Text>
+                          {job.parentBookingCount > 0 && (
+                            <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>
+                              {job.parentBookingCount} booking{job.parentBookingCount !== 1 ? 's' : ''} completed
+                            </Text>
+                          )}
+                        </View>
+                        <View style={{ backgroundColor: config.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 }}>
                           <Text style={{ fontSize: 11, fontWeight: '700', color: config.fg }}>
                             {config.label}
                           </Text>
@@ -322,70 +378,109 @@ export default function JobsTab() {
                         · {start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} –{' '}
                         {end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
                       </Text>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY, marginTop: 4 }}>
-                        {job.totalPrice.toLocaleString()} DZD
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY }}>
+                          {job.totalPrice.toLocaleString()} DZD
+                        </Text>
+
+                        {/* Chat button */}
+                        {(job.status === BookingStatus.PENDING ||
+                          job.status === BookingStatus.CONFIRMED ||
+                          job.status === BookingStatus.IN_PROGRESS) && (
+                          <TouchableOpacity
+                            style={{
+                              flexDirection: 'row', alignItems: 'center', gap: 4,
+                              backgroundColor: '#E1F5EE', paddingHorizontal: 10,
+                              paddingVertical: 5, borderRadius: 99,
+                            }}
+                            onPress={() => {
+                              haptics.light();
+                              router.push({
+                                pathname: '/chat/[sitterId]' as any,
+                                params: {
+                                  sitterId: job.parentId,
+                                  sitterName: job.parentName,
+                                  sitterAvatar: job.parentPhoto ?? '',
+                                  bookingId: job.id,
+                                },
+                              });
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="chatbubble-outline" size={12} color={PRIMARY} />
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: PRIMARY }}>Chat</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </View>
                   </View>
 
-                  {/* Action buttons */}
-                  {job.status === BookingStatus.PENDING && (
-                    <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#F5F5F5' }}>
-                      <TouchableOpacity
-                        style={[s.actionBtn, { borderRightWidth: 1, borderRightColor: '#F5F5F5' }]}
-                        onPress={() => handleDecline(job)}
-                        disabled={actionLoading === job.id}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: '#EF4444' }}>Decline</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[s.actionBtn, { backgroundColor: '#E1F5EE' }]}
-                        onPress={() => handleAccept(job)}
-                        disabled={actionLoading === job.id}
-                        activeOpacity={0.75}
-                      >
-                        {actionLoading === job.id ? (
-                          <ActivityIndicator size="small" color={PRIMARY} />
-                        ) : (
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY }}>Accept</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  )}
-
-                  {job.status === BookingStatus.IN_PROGRESS && (
+                  {/* Unified Action buttons */}
+                  <View style={s.cardBottom}>
+                    {/* Details always on the left */}
                     <TouchableOpacity
-                      style={[
-                        s.actionBtn,
-                        { borderTopWidth: 1, borderTopColor: '#F5F5F5', backgroundColor: '#E1F5EE' },
-                      ]}
-                      onPress={() => handleComplete(job)}
-                      disabled={actionLoading === job.id}
+                      style={s.detailsBtn}
+                      onPress={() => router.push({ pathname: '/job/[id]' as any, params: { id: job.id } })}
                       activeOpacity={0.75}
                     >
-                      {actionLoading === job.id ? (
-                        <ActivityIndicator size="small" color={PRIMARY} />
-                      ) : (
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY }}>
-                          Mark as Complete
-                        </Text>
+                      <Text style={s.detailsBtnText}>Details</Text>
+                      <Ionicons name="chevron-forward" size={13} color={PRIMARY} />
+                    </TouchableOpacity>
+
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {/* PENDING: decline (X) + accept (✓) */}
+                      {job.status === BookingStatus.PENDING && (
+                        <>
+                          <TouchableOpacity
+                            style={[s.iconBtn, { backgroundColor: '#FEF2F2' }]}
+                            onPress={() => handleDecline(job)}
+                            disabled={actionLoading === job.id}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="close" size={18} color="#EF4444" />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[s.iconBtn, { backgroundColor: '#E1F5EE' }]}
+                            onPress={() => handleAccept(job)}
+                            disabled={actionLoading === job.id}
+                            activeOpacity={0.8}
+                          >
+                            {actionLoading === job.id
+                              ? <ActivityIndicator size="small" color={PRIMARY} />
+                              : <Ionicons name="checkmark" size={18} color={PRIMARY} />}
+                          </TouchableOpacity>
+                        </>
                       )}
-                    </TouchableOpacity>
-                  )}
 
-                  {job.status === BookingStatus.CONFIRMED && (
-                    <TouchableOpacity
-                      style={[
-                        s.actionBtn,
-                        { borderTopWidth: 1, borderTopColor: '#F5F5F5', flex: 0, height: 44 },
-                      ]}
-                      onPress={() => router.push({ pathname: '/booking/[id]', params: { id: job.id } })}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280' }}>View details</Text>
-                    </TouchableOpacity>
-                  )}
+                      {/* CONFIRMED: Cancel button */}
+                      {job.status === BookingStatus.CONFIRMED && (
+                        <TouchableOpacity
+                          style={[s.iconBtn, { backgroundColor: '#FEF2F2', width: 'auto' as any, paddingHorizontal: 12 }]}
+                          onPress={() => handleCancel(job)}
+                          disabled={actionLoading === job.id}
+                          activeOpacity={0.8}
+                        >
+                          {actionLoading === job.id
+                            ? <ActivityIndicator size="small" color="#EF4444" />
+                            : <Text style={{ fontSize: 13, fontWeight: '700', color: '#EF4444' }}>Cancel</Text>}
+                        </TouchableOpacity>
+                      )}
+
+                      {/* IN_PROGRESS: complete button */}
+                      {job.status === BookingStatus.IN_PROGRESS && (
+                        <TouchableOpacity
+                          style={[s.iconBtn, { backgroundColor: '#E1F5EE', width: 'auto' as any, paddingHorizontal: 14 }]}
+                          onPress={() => handleComplete(job)}
+                          disabled={actionLoading === job.id}
+                          activeOpacity={0.8}
+                        >
+                          {actionLoading === job.id
+                            ? <ActivityIndicator size="small" color={PRIMARY} />
+                            : <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY }}>Complete</Text>}
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
                 </View>
               );
             })
@@ -426,11 +521,21 @@ const s = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-  actionBtn: {
-    flex: 1,
-    height: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardBottom: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderTopWidth: 1, borderTopColor: '#F5F5F5',
+  },
+  detailsBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999, backgroundColor: '#EEF9F8',
+  },
+  detailsBtnText: { fontSize: 13, fontWeight: '700', color: Colors.light.primary },
+  iconBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
   emptyBox: {
     backgroundColor: '#FFFFFF',

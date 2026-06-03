@@ -18,6 +18,7 @@ export enum BookingStatus {
   DECLINED = 'DECLINED',
   CANCELLED = 'CANCELLED',
   COMPLETED = 'COMPLETED',
+  UNAVAILABLE = 'UNAVAILABLE',
 }
 
 export enum NotificationType {

@@ -1,5 +1,5 @@
 // app/chat/[sitterId].tsx
-// Real-looking chat screen between parent and sitter.
+// Real-looking chat screen between parent and sitter (bidirectional).
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -68,9 +68,10 @@ export default function ChatScreen() {
     bookingId?: string;
   }>();
 
-  const sitter = MOCK_SITTERS.find(s => String(s.id) === String(sitterId)) ?? MOCK_SITTERS[0];
-  const displayName = sitterName ?? `${sitter.firstName} ${sitter.lastName}`;
-  const avatarUri = sitterAvatar || sitter.photo;
+  // Works for both directions: sitterId can be a mock sitter id OR a parent UUID
+  const mockSitter = MOCK_SITTERS.find(s => String(s.id) === String(sitterId));
+  const displayName = sitterName ?? (mockSitter ? `${mockSitter.firstName} ${mockSitter.lastName}` : 'Parent');
+  const avatarUri = sitterAvatar || mockSitter?.photo || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100';
 
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
@@ -91,7 +92,7 @@ export default function ChatScreen() {
     setInput('');
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
-    // Simulate sitter typing then replying
+    // Simulate reply
     setTimeout(() => {
       const replies = [
         'Of course! Let me check.',
@@ -145,9 +146,9 @@ export default function ChatScreen() {
             style={styles.callBtn}
             onPress={() => {
               haptics.light();
-              const phone = sitter?.phone;
+              const phone = mockSitter?.phone;
               if (!phone) {
-                Alert.alert('Not available', 'This sitter has no phone number on file.');
+                Alert.alert('Not available', 'No phone number on file.');
                 return;
               }
               Linking.openURL(`tel:${phone.replace(/\s/g, '')}`).catch(() =>
@@ -155,7 +156,7 @@ export default function ChatScreen() {
               );
             }}
             accessibilityRole="button"
-            accessibilityLabel="Call sitter"
+            accessibilityLabel="Call"
             hitSlop={8}
           >
             <Ionicons name="call-outline" size={20} color={colors.primary} />

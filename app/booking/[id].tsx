@@ -105,23 +105,6 @@ export default function BookingDetailScreen() {
   const dateLabel = formatDate(booking.startDate);
   const timeLabel = `${timeOf(booking.startDate)} – ${timeOf(booking.endDate)}`;
 
-  const isCancellable = status === BookingStatus.PENDING || status === BookingStatus.CONFIRMED;
-
-  const onCancel = () => {
-    Alert.alert(
-      'Cancel this booking?',
-      'This will notify the sitter immediately. You can re-book later.',
-      [
-        { text: 'Keep it', style: 'cancel' },
-        {
-          text: 'Cancel booking',
-          style: 'destructive',
-          onPress: () => { haptics.warning(); setStatus(BookingStatus.CANCELLED); },
-        },
-      ],
-    );
-  };
-
   const m = statusConfig[status];
 
   return (
@@ -339,16 +322,7 @@ export default function BookingDetailScreen() {
             </View>
           )}
 
-          {isCancellable && (
-            <Button
-              label="Cancel booking"
-              variant="ghost"
-              hapticFeedback="none"
-              onPress={onCancel}
-            />
-          )}
-
-          {(status === BookingStatus.DECLINED || status === BookingStatus.CANCELLED) && (
+          {(status === BookingStatus.DECLINED || status === BookingStatus.CANCELLED || status === BookingStatus.UNAVAILABLE) && (
             <Button
               label="Find another sitter"
               variant="primary"
@@ -403,6 +377,12 @@ const statusConfig: Record<BookingStatus, {
     subtitle: 'Try a similar sitter nearby — there are many around.',
     icon: CircleAlert,
     gradient: ['#DC2626', '#E11D48'],
+  },
+  [BookingStatus.UNAVAILABLE]: {
+    title: 'On hold ⏸',
+    subtitle: 'This sitter is currently with another family. You will be notified when she is free.',
+    icon: Clock,
+    gradient: ['#6B7280', '#9CA3AF'],
   },
 };
 
