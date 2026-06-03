@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Session } from '@supabase/supabase-js';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { registerPushToken } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
 export interface Profile {
@@ -98,8 +99,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (!mounted) return;
       setSession(s);
-      if (s?.user?.id) await fetchProfile(s.user.id);
-      else setProfile(null);
+      
+      if (s?.user?.id) {
+        await fetchProfile(s.user.id);
+        registerPushToken(); // ← Register push token when user signs in / session is restored
+      } else {
+        setProfile(null);
+      }
     });
 
     return () => {

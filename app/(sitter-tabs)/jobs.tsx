@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { haptics } from '../../lib/haptics';
+import { sendPushToUser } from '../../lib/push';
 import { supabase } from '../../lib/supabase';
 import { BookingStatus } from '../../models/types';
 
@@ -26,6 +27,7 @@ type Job = {
   id: string;
   code: string;
   status: BookingStatus;
+  cancellationReason: string | null;
   parentName: string;
   parentPhoto: string | null;
   parentId: string;
@@ -54,6 +56,7 @@ const FALLBACK_JOBS: Job[] = [
     id: 'mock-req-1',
     code: 'REQ-001',
     status: BookingStatus.PENDING,
+    cancellationReason: null,
     parentName: 'Sarah B.',
     parentPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
     parentId: 'mock-parent-1',
@@ -70,6 +73,7 @@ const FALLBACK_JOBS: Job[] = [
     id: 'mock-req-2',
     code: 'REQ-002',
     status: BookingStatus.PENDING,
+    cancellationReason: null,
     parentName: 'Yasmine K.',
     parentPhoto: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
     parentId: 'mock-parent-2',
@@ -104,7 +108,7 @@ export default function JobsTab() {
       const { data } = await supabase
         .from('bookings')
         .select(`
-          id, code, status, start_date, end_date, total_price, parent_id,
+          id, code, status, cancellation_reason, start_date, end_date, total_price, parent_id,
           parent:profiles!parent_id(
             id, first_name, last_name, photo_url,
             parent_details(avg_rating, rating_count)
@@ -120,6 +124,7 @@ export default function JobsTab() {
             id: b.id,
             code: b.code ?? b.id.slice(0, 8).toUpperCase(),
             status: b.status as BookingStatus,
+            cancellationReason: b.cancellation_reason ?? null,
             startDate: b.start_date,
             endDate: b.end_date,
             totalPrice: b.total_price ?? 0,
@@ -147,26 +152,45 @@ export default function JobsTab() {
     haptics.medium();
     setActionLoading(job.id);
     try {
-      // Skip Supabase for mock/fallback jobs
-      if (!job.id.startsWith('mock-') && !job.id.startsWith('req-')) {
+      // Mock jobs don't exist in Supabase — skip DB call, just update local state
+      const isMock = job.id.startsWith('mock-') || job.id.startsWith('req-');
+
+      if (!isMock) {
         const { error } = await supabase
           .from('bookings')
           .update({ status: 'CONFIRMED' })
           .eq('id', job.id);
+
         if (error) {
           Alert.alert('Error', 'Could not confirm booking. Please try again.');
           setActionLoading(null);
           return;
         }
       }
+
       setJobs((prev) =>
         prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.CONFIRMED } : j))
       );
       haptics.success();
-      setActiveTab('upcoming');
-      Alert.alert('✅ Booking accepted', `Confirmed for ${job.parentName}.`, [{ text: 'Got it' }]);
-    } catch (e) {
-      Alert.alert('Error', 'Could not confirm booking. Please try again.');
+
+      // Notify the parent that their booking was confirmed
+      await sendPushToUser(
+        job.parentId,
+        'Booking confirmed ✓',
+        `${job.parentName?.split(' ')[0] ?? 'Your sitter'} accepted your booking request.`,
+        { booking_id: job.id }
+      );
+
+      Alert.alert(
+        '✅ Booking accepted',
+        `Confirmed for ${job.parentName}.`,
+        [
+          { text: 'Stay here', style: 'cancel' },
+          { text: 'View upcoming', onPress: () => setActiveTab('upcoming') },
+        ]
+      );
+    } catch (e: any) {
+      Alert.alert('Error', 'Could not confirm booking.');
     } finally {
       setActionLoading(null);
     }
@@ -181,7 +205,8 @@ export default function JobsTab() {
         style: 'destructive',
         onPress: async () => {
           setActionLoading(job.id);
-          if (!job.id.startsWith('mock-') && !job.id.startsWith('req-')) {
+          const isMock = job.id.startsWith('mock-') || job.id.startsWith('req-');
+          if (!isMock) {
             const { error } = await supabase.from('bookings').update({ status: 'DECLINED' }).eq('id', job.id);
             if (error) {
               setActionLoading(null);
@@ -192,6 +217,16 @@ export default function JobsTab() {
             prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.DECLINED } : j))
           );
           setActionLoading(null);
+
+          // Notify parent that the sitter declined
+          if (!isMock) {
+            await sendPushToUser(
+              job.parentId,
+              'Booking declined',
+              'The sitter is unavailable. Try booking another sitter nearby.',
+              { booking_id: job.id }
+            );
+          }
         },
       },
     ]);
@@ -209,15 +244,21 @@ export default function JobsTab() {
           style: 'destructive',
           onPress: async () => {
             setActionLoading(job.id);
-            if (!job.id.startsWith('mock-') && !job.id.startsWith('req-')) {
-              const { error } = await supabase.from('bookings').update({ status: 'CANCELLED' }).eq('id', job.id);
+            const isMock = job.id.startsWith('mock-') || job.id.startsWith('req-');
+            if (!isMock) {
+              const { error } = await supabase.from('bookings')
+                .update({ status: 'CANCELLED', cancellation_reason: 'sitter_cancelled' })
+                .eq('id', job.id);
               if (error) {
                 setActionLoading(null);
                 return;
               }
             }
             setJobs((prev) =>
-              prev.map((j) => (j.id === job.id ? { ...j, status: BookingStatus.CANCELLED } : j))
+              prev.map((j) => (j.id === job.id
+                ? { ...j, status: BookingStatus.CANCELLED, cancellationReason: 'sitter_cancelled' }
+                : j
+              ))
             );
             setActionLoading(null);
           },
@@ -340,7 +381,12 @@ export default function JobsTab() {
             </View>
           ) : (
             filtered.map((job) => {
-              const config = STATUS_COLORS[job.status] ?? STATUS_COLORS.PENDING;
+              const config = (
+                job.status === BookingStatus.CANCELLED && job.cancellationReason === 'sitter_cancelled'
+                  ? STATUS_COLORS.DECLINED  // red styling for sitter-cancelled jobs
+                  : STATUS_COLORS[job.status]
+              ) ?? STATUS_COLORS.PENDING;
+
               const start = new Date(job.startDate);
               const end = new Date(job.endDate);
 
@@ -414,7 +460,6 @@ export default function JobsTab() {
                         <Text style={{ fontSize: 13, fontWeight: '700', color: PRIMARY }}>
                           {job.totalPrice.toLocaleString()} DZD
                         </Text>
-
                       </View>
                     </View>
                   </View>
@@ -424,7 +469,14 @@ export default function JobsTab() {
                     {/* Details always on the left */}
                     <TouchableOpacity
                       style={s.detailsBtn}
-                      onPress={() => router.push({ pathname: '/job/[id]' as any, params: { id: job.id } })}
+                      onPress={() => router.push({ 
+                        pathname: '/job/[id]' as any, 
+                        params: { 
+                          id: job.id, 
+                          passedStatus: job.status,
+                          passedCancellationReason: job.cancellationReason ?? '' 
+                        } 
+                      })}
                       activeOpacity={0.75}
                     >
                       <Text style={s.detailsBtnText}>Details</Text>

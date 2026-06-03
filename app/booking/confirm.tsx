@@ -3,25 +3,26 @@
 // Confirmation screen for the new-booking flow.
 // Reads all params passed from `app/booking/new/[sitterId].tsx` (handleContinue)
 // and creates the booking in Supabase on confirm.
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  View,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  Text,
-  StatusBar,
   ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
-import { Colors } from '../../constants/Colors';
 import { BookingSummary } from '../../components/booking/BookingSummary';
+import { Colors } from '../../constants/Colors';
+import { haptics } from '../../lib/haptics';
+import { sendPushToUser } from '../../lib/push';
 import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
 import { supabase } from '../../lib/supabase';
-import { haptics } from '../../lib/haptics';
 
 type Params = {
   sitterId?: string;
@@ -105,7 +106,18 @@ export default function BookingConfirmScreen() {
           end_date: endISO.toISOString(), total_price: totalNum,
           notes: params.notes || null,
         });
-        if (error) console.warn('[confirm] insert error:', error.message);
+
+        if (error) {
+          console.warn('[confirm] insert error:', error.message);
+        } else if (params.sitterId) {
+          // Notify sitter about new booking request
+          await sendPushToUser(
+            params.sitterId,
+            'New booking request 📋',
+            `${params.sitterName ?? 'A parent'} wants to book you. Check your Jobs tab.`,
+            { booking_code: code }
+          );
+        }
       }
 
       // Go to payment screen (works in both auth and demo mode)

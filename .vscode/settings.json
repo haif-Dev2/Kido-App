@@ -3,5 +3,13 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
+  },
+  "deno.enablePaths": ["supabase/functions"],
+  "deno.lint": false,
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "js/ts.validate.enabled": true,
+  "js/ts.tsserver.experimental.enableProjectDiagnostics": false,
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
   }
 }

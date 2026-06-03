@@ -8,20 +8,24 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import Animated, { FadeInDown, FadeInUp, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/Colors';
 import { haptics } from '../../lib/haptics';
 import { supabase } from '../../lib/supabase';
+
+// New imports for consistent UI
+import { MessageCircle, Phone } from 'lucide-react-native';
+import { Button } from '../../components/ui/Button';
 
 const PRIMARY = Colors.light.primary;
 
@@ -65,6 +69,12 @@ const STATUS_CONFIG: Record<string, {
     subtitle: 'The parent cancelled this booking.',
     icon: 'ban-outline',
     gradient: ['#6B7280', '#9CA3AF'],
+  },
+  CANCELLED_BY_SITTER: {
+    title: 'You cancelled this job',
+    subtitle: 'The parent has been notified and can book another sitter.',
+    icon: 'close-circle-outline',
+    gradient: ['#DC2626', '#EF4444'],
   },
   UNAVAILABLE: {
     title: 'On hold',
@@ -124,7 +134,11 @@ const ir = StyleSheet.create({
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function JobDetailScreen() {
-  const { id, initialStatus } = useLocalSearchParams<{ id: string; initialStatus?: string }>();
+  const { id, passedStatus, passedCancellationReason } = useLocalSearchParams<{
+    id: string;
+    passedStatus?: string;
+    passedCancellationReason?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -141,6 +155,7 @@ export default function JobDetailScreen() {
     childrenCount: number;
     childrenAges: number[] | null;
     specialNotes: string | null;
+    cancellationReason: string | null;
     parentId: string;
     parentName: string;
     parentPhoto: string | null;
@@ -153,12 +168,12 @@ export default function JobDetailScreen() {
     async function load() {
       setLoading(true);
 
-      // Mock IDs — use initialStatus passed from navigation
+      // Mock IDs — use passedStatus passed from navigation
       if (id && typeof id === 'string' && (id.startsWith('mock-') || id.startsWith('req-'))) {
         setJob({
           id,
           code: id.replace('mock-req-', 'REQ-00').replace('req-', 'REQ-00'),
-          status: initialStatus ?? 'PENDING',
+          status: passedStatus ?? 'PENDING',
           startDate: new Date(Date.now() + 3 * 3600000).toISOString(),
           endDate: new Date(Date.now() + 6 * 3600000).toISOString(),
           durationHours: 3,
@@ -167,6 +182,7 @@ export default function JobDetailScreen() {
           childrenCount: 2,
           childrenAges: [3, 6],
           specialNotes: 'Sample notes for demo job',
+          cancellationReason: passedCancellationReason ?? null,
           parentId: 'mock-parent',
           parentName: id === 'mock-req-1' ? 'Sarah B.' : 'Yasmine K.',
           parentPhoto: id === 'mock-req-1'
@@ -184,7 +200,7 @@ export default function JobDetailScreen() {
         const { data, error } = await supabase
           .from('bookings')
           .select(`
-            id, code, status, start_date, end_date, duration_hours, total_price,
+            id, code, status, cancellation_reason, start_date, end_date, duration_hours, total_price,
             created_at, children_count, children_ages, special_notes, parent_id,
             parent:profiles!parent_id(
               id, first_name, last_name, photo_url, phone,
@@ -209,6 +225,7 @@ export default function JobDetailScreen() {
             childrenCount: data.children_count ?? 1,
             childrenAges: data.children_ages ?? null,
             specialNotes: data.special_notes ?? null,
+            cancellationReason: data.cancellation_reason ?? null,
             parentId: data.parent_id,
             parentName: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Parent',
             parentPhoto: p.photo_url ?? null,
@@ -216,36 +233,37 @@ export default function JobDetailScreen() {
             parentRating: pd.avg_rating ?? 0,
             parentBookingCount: pd.rating_count ?? 0,
           });
-        } else if (initialStatus) {
-          // Fallback when DB fetch fails but we have status from navigation
-          setJob({
-            id: String(id),
-            code: String(id).slice(0, 8).toUpperCase(),
-            status: initialStatus,
-            startDate: new Date().toISOString(),
-            endDate: new Date(Date.now() + 3 * 3600000).toISOString(),
-            durationHours: 3,
-            totalPrice: 2400,
-            createdAt: new Date().toISOString(),
-            childrenCount: 2,
-            childrenAges: [3, 6],
-            specialNotes: null,
-            parentId: '',
-            parentName: 'Parent',
-            parentPhoto: null,
-            parentPhone: null,
-            parentRating: 0,
-            parentBookingCount: 0,
-          });
+        } else {
+          if (passedStatus) {
+            setJob({
+              id: String(id),
+              code: String(id).slice(0, 8).toUpperCase(),
+              status: passedStatus,
+              startDate: new Date().toISOString(),
+              endDate: new Date(Date.now() + 3 * 3600000).toISOString(),
+              durationHours: 3,
+              totalPrice: 2400,
+              createdAt: new Date().toISOString(),
+              childrenCount: 2,
+              childrenAges: [3, 6],
+              specialNotes: null,
+              cancellationReason: passedCancellationReason ?? null,
+              parentId: '',
+              parentName: 'Parent',
+              parentPhoto: null,
+              parentPhone: null,
+              parentRating: 0,
+              parentBookingCount: 0,
+            });
+          }
         }
       } catch (e) {
         console.warn('[job detail] load error:', e);
-        // Fallback using initialStatus if available
-        if (initialStatus) {
+        if (passedStatus) {
           setJob({
             id: String(id),
             code: String(id).slice(0, 8).toUpperCase(),
-            status: initialStatus,
+            status: passedStatus,
             startDate: new Date().toISOString(),
             endDate: new Date(Date.now() + 3 * 3600000).toISOString(),
             durationHours: 3,
@@ -254,6 +272,7 @@ export default function JobDetailScreen() {
             childrenCount: 2,
             childrenAges: [3, 6],
             specialNotes: null,
+            cancellationReason: passedCancellationReason ?? null,
             parentId: '',
             parentName: 'Parent',
             parentPhoto: null,
@@ -267,7 +286,7 @@ export default function JobDetailScreen() {
       }
     }
     load();
-  }, [id, initialStatus]);
+  }, [id, passedStatus, passedCancellationReason]);
 
   if (loading) {
     return (
@@ -289,7 +308,13 @@ export default function JobDetailScreen() {
     );
   }
 
-  const cfg = STATUS_CONFIG[job.status] ?? STATUS_CONFIG.PENDING;
+  const effectiveCancellationReason = job.cancellationReason ?? passedCancellationReason ?? '';
+  const statusKey =
+    job.status === 'CANCELLED' && effectiveCancellationReason === 'sitter_cancelled'
+      ? 'CANCELLED_BY_SITTER'
+      : job.status;
+  const cfg = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.PENDING;
+
   const isActive = ['CONFIRMED', 'IN_PROGRESS'].includes(String(job.status));
 
   // Format children ages
@@ -432,115 +457,55 @@ export default function JobDetailScreen() {
           </Text>
         </Animated.View>
 
-        {/* ── Actions at bottom — only for confirmed/in-progress ── */}
+        {/* ── Actions — Message & Call using shared Button component ── */}
         {isActive && (
           <Animated.View
             entering={FadeInDown.duration(340).delay(260)}
-            style={{ marginHorizontal: 16, marginTop: 20, gap: 10 }}
+            className="mx-4 mt-6 gap-3"
           >
-            {/* Chat + Call side by side */}
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1, flexDirection: 'row', alignItems: 'center',
-                  justifyContent: 'center', gap: 8,
-                  backgroundColor: '#E1F5EE', borderRadius: 14, paddingVertical: 15,
-                }}
-                onPress={() => {
-                  haptics.light();
-                  router.push({
-                    pathname: '/chat/[sitterId]' as any,
-                    params: {
-                      sitterId: job.parentId,
-                      sitterName: job.parentName,
-                      sitterAvatar: job.parentPhoto ?? '',
-                      bookingId: job.id,
-                    },
-                  });
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="chatbubble-outline" size={18} color={PRIMARY} />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: PRIMARY }}>Message</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  flex: 1, flexDirection: 'row', alignItems: 'center',
-                  justifyContent: 'center', gap: 8,
-                  backgroundColor: '#E1F5EE', borderRadius: 14, paddingVertical: 15,
-                }}
-                onPress={() => {
-                  haptics.light();
-                  if (!job.parentPhone) {
-                    Alert.alert('Not available', 'No phone number on file for this parent.');
-                    return;
-                  }
-                  Linking.openURL(`tel:${job.parentPhone.replace(/\s/g, '')}`).catch(() =>
-                    Alert.alert('Cannot call', 'Unable to open the phone app.')
-                  );
-                }}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="call-outline" size={18} color={PRIMARY} />
-                <Text style={{ fontSize: 15, fontWeight: '700', color: PRIMARY }}>Call</Text>
-              </TouchableOpacity>
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Button
+                  label="Message"
+                  variant="soft"
+                  size="lg"
+                  leftIcon={MessageCircle}
+                  onPress={() => {
+                    haptics.light();
+                    router.push({
+                      pathname: '/chat/[sitterId]' as any,
+                      params: {
+                        sitterId: job.parentId,
+                        sitterName: job.parentName,
+                        sitterAvatar: job.parentPhoto ?? '',
+                        bookingId: job.id,
+                      },
+                    });
+                  }}
+                />
+              </View>
+              <View className="flex-1">
+                <Button
+                  label="Call"
+                  variant="secondary"
+                  size="lg"
+                  leftIcon={Phone}
+                  onPress={() => {
+                    haptics.light();
+                    if (!job.parentPhone) {
+                      Alert.alert('Not available', 'No phone number on file for this parent.');
+                      return;
+                    }
+                    Linking.openURL(`tel:${job.parentPhone.replace(/\s/g, '')}`).catch(() =>
+                      Alert.alert('Cannot call', 'Unable to open the phone app.')
+                    );
+                  }}
+                />
+              </View>
             </View>
           </Animated.View>
         )}
       </ScrollView>
-
-      {/* ── Fixed bottom actions ── */}
-      {(job.status === 'CONFIRMED' || job.status === 'IN_PROGRESS') && (
-        <Animated.View
-          entering={FadeInUp.duration(340)}
-          style={{
-            position: 'absolute',
-            bottom: 0, left: 0, right: 0,
-            paddingHorizontal: 16,
-            paddingTop: 12,
-            paddingBottom: insets.bottom + 12,
-            backgroundColor: '#FFFFFF',
-            borderTopWidth: 1,
-            borderTopColor: '#F0F0F0',
-            gap: 10,
-          }}
-        >
-          {job.status === 'CONFIRMED' && (
-            <TouchableOpacity
-              style={{
-                backgroundColor: '#FEF2F2',
-                borderRadius: 14, paddingVertical: 14,
-                alignItems: 'center',
-                flexDirection: 'row', justifyContent: 'center', gap: 6,
-              }}
-              onPress={() => {
-                haptics.warning();
-                Alert.alert(
-                  'Cancel this booking?',
-                  'The parent will be notified. This cannot be undone.',
-                  [
-                    { text: 'Keep it', style: 'cancel' },
-                    {
-                      text: 'Cancel booking',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await supabase.from('bookings').update({ status: 'CANCELLED' }).eq('id', job.id);
-                        haptics.medium();
-                        router.back();
-                      },
-                    },
-                  ]
-                );
-              }}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="close-circle-outline" size={18} color="#EF4444" />
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#EF4444' }}>Cancel booking</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
-      )}
     </View>
   );
 }
