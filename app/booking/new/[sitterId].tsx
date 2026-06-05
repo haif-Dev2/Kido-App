@@ -30,6 +30,7 @@ import {
 import { TimeSelector } from '@/components/booking/TimeSelector';
 import { supabase } from '@/lib/supabase';
 import { colors, fonts, radius } from '@/theme/colors';
+import { haptics } from '../../../lib/haptics';
 import { READING_MAX_WIDTH, useResponsive } from '../../../lib/responsive';
 
 export default function BookingScreen() {
@@ -133,7 +134,7 @@ export default function BookingScreen() {
       .from('bookings')
       .select('id, status, start_date')
       .eq('parent_id', session!.user.id)
-      .in('status', ['PENDING', 'CONFIRMED', 'IN_PROGRESS'])
+      .in('status', ['CONFIRMED', 'IN_PROGRESS'])
       .limit(1);
 
     if (!checkError && activeBookings && activeBookings.length > 0) {
@@ -217,6 +218,24 @@ export default function BookingScreen() {
           />
         </SafeAreaView>
 
+        {/* Custom header with X button on the right */}
+        <View style={{
+          position: 'absolute',
+          top: 12,
+          right: 16,
+          zIndex: 10,
+        }}>
+          <TouchableOpacity
+            onPress={() => {
+              haptics.light();
+              router.replace('/(tabs)/search');
+            }}
+            hitSlop={12}
+          >
+            <Ionicons name="close" size={24} color="#6B7280" />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.body}>
           {/* 01 - Date */}
           <View style={styles.section}>
@@ -242,7 +261,7 @@ export default function BookingScreen() {
             />
           </View>
 
-          {/* Number of children + Ages - Added after time picker */}
+          {/* Number of children + Ages */}
           <View style={styles.section}>
             <SectionHeader step="03" category="Family" title="How many children?" />
 
@@ -401,7 +420,7 @@ export default function BookingScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Bottom Bar — full-width divider, centered content column on tablet+. */}
+      {/* Bottom Bar */}
       <SafeAreaView edges={['bottom']} style={[styles.bottomBarWrap, { alignItems: 'center' }]}>
         <View style={[styles.bottomBar, { width: '100%', maxWidth: contentMaxWidth }]}>
           <View>

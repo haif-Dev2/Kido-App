@@ -372,7 +372,7 @@ export default function SearchScreen() {
         hourlyRate: s.hourlyRate,
         availabilities: [],
         averageRating: s.avgRating,
-        location: s.neighborhood && s.neighborhood !== 'Algeria' ? s.neighborhood : 'Algeria',
+        location: s.neighborhood || 'Algeria',
         isValidated: true,
         identityVerified: false,
         // MockSitter extended fields

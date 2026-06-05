@@ -110,13 +110,15 @@ export default function JobsTab() {
         .select(`
           id, code, status, cancellation_reason, start_date, end_date, total_price, parent_id,
           parent:profiles!parent_id(
-            id, first_name, last_name, photo_url,
-            parent_details(avg_rating, rating_count)
+            id, first_name, last_name, photo_url
           )
         `)
         .eq('babysitter_id', user.id)
         .order('start_date', { ascending: false })
         .limit(30);
+
+      // Debug log to help diagnose join issues
+      console.log('[jobs] first booking parent:', JSON.stringify(data?.[0]?.parent));
 
       if (data && data.length > 0) {
         setJobs(
@@ -130,11 +132,11 @@ export default function JobsTab() {
             totalPrice: b.total_price ?? 0,
             parentId: b.parent_id ?? '',
             parentName: b.parent
-              ? `${b.parent.first_name} ${b.parent.last_name}`.trim()
+              ? `${b.parent.first_name ?? ''} ${b.parent.last_name ?? ''}`.trim() || 'Parent'
               : 'Parent',
             parentPhoto: b.parent?.photo_url ?? null,
-            parentRating: b.parent?.parent_details?.avg_rating ?? 0,
-            parentBookingCount: b.parent?.parent_details?.rating_count ?? 0,
+            parentRating: 0,
+            parentBookingCount: 0,
           }))
         );
       }
@@ -161,7 +163,11 @@ export default function JobsTab() {
           .eq('id', job.id);
 
         if (error) {
-          Alert.alert('Error', 'Could not confirm booking. Please try again.');
+          console.warn('[handleAccept] error code:', error.code);
+          console.warn('[handleAccept] error message:', error.message);
+          console.warn('[handleAccept] error details:', error.details);
+          console.warn('[handleAccept] error hint:', error.hint);
+          Alert.alert('Error', error.message || 'Could not confirm booking.');
           setActionLoading(null);
           return;
         }

@@ -4,8 +4,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator, Alert, RefreshControl,
-    ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,21 +49,6 @@ type UpcomingBooking = {
   status: BookingStatus;
 };
 
-const FALLBACK_REQUESTS: BookingRequest[] = [
-  {
-    id: 'req-1', parentName: 'Sarah B.',
-    parentPhoto: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-    childCount: 2, location: 'Hydra', date: 'Tonight', time: '7:00 PM – 10:00 PM',
-    price: 2400, urgent: true,
-  },
-  {
-    id: 'req-2', parentName: 'Yasmine K.',
-    parentPhoto: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100',
-    childCount: 1, location: 'Bab Ezzouar', date: 'Sat, Jun 7', time: '9:30 AM – 1:00 PM',
-    price: 2200, urgent: false,
-  },
-];
-
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 5) return 'Good night';
@@ -72,7 +63,7 @@ export default function SitterHomeTab() {
   const { profile } = useAuth();
   const { isPhone } = useResponsive();
 
-  const [requests, setRequests] = useState<BookingRequest[]>(FALLBACK_REQUESTS);
+  const [requests, setRequests] = useState<BookingRequest[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingBooking[]>([]);
   const [stats, setStats] = useState({ completed: 0, rating: 0, reviewsCount: 0, pending: 0 });
   const [loading, setLoading] = useState(true);
@@ -87,7 +78,9 @@ export default function SitterHomeTab() {
     ?? 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=200';
 
   const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true); else setLoading(true);
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -103,47 +96,59 @@ export default function SitterHomeTab() {
         .order('start_date', { ascending: true })
         .limit(10);
 
-      if (bookings && bookings.length > 0) {
-        const pending = bookings.filter((b: any) => b.status === 'PENDING');
-        const confirmed = bookings.filter((b: any) => b.status !== 'PENDING');
-        if (pending.length > 0) {
-          setRequests(pending.map((b: any) => {
-            const start = new Date(b.start_date);
-            const end = new Date(b.end_date);
-            return {
-              id: b.id,
-              parentName: b.parent ? `${b.parent.first_name} ${b.parent.last_name}`.trim() : 'Parent',
-              parentPhoto: b.parent?.photo_url ?? null,
-              childCount: 1, location: 'Algeria',
-              date: start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-              time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`,
-              price: b.total_price ?? 0, urgent: false,
-            };
-          }));
-        }
-        setUpcoming(confirmed.map((b: any) => ({
-          id: b.id, code: b.code ?? b.id.slice(0, 8).toUpperCase(),
-          status: b.status as BookingStatus,
-          startDate: b.start_date, endDate: b.end_date,
-          totalPrice: b.total_price ?? 0,
+      // Always update from DB (even if empty)
+      const pending = (bookings ?? []).filter((b: any) => b.status === 'PENDING');
+      const confirmed = (bookings ?? []).filter((b: any) => b.status !== 'PENDING');
+
+      setRequests(pending.map((b: any) => {
+        const start = new Date(b.start_date);
+        const end = new Date(b.end_date);
+        return {
+          id: b.id,
           parentName: b.parent ? `${b.parent.first_name} ${b.parent.last_name}`.trim() : 'Parent',
           parentPhoto: b.parent?.photo_url ?? null,
-        })));
-      }
+          childCount: 1,
+          location: 'Algeria',
+          date: start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+          time: `${start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} – ${end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+          price: b.total_price ?? 0,
+          urgent: false,
+        };
+      }));
 
-      const [{ count: completed }, { count: pending }, { data: reviews }] = await Promise.all([
+      setUpcoming(confirmed.map((b: any) => ({
+        id: b.id,
+        code: b.code ?? b.id.slice(0, 8).toUpperCase(),
+        status: b.status as BookingStatus,
+        startDate: b.start_date,
+        endDate: b.end_date,
+        totalPrice: b.total_price ?? 0,
+        parentName: b.parent ? `${b.parent.first_name} ${b.parent.last_name}`.trim() : 'Parent',
+        parentPhoto: b.parent?.photo_url ?? null,
+      })));
+
+      const [{ count: completed }, { count: pendingCount }, { data: reviews }] = await Promise.all([
         supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('babysitter_id', user.id).eq('status', 'COMPLETED'),
         supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('babysitter_id', user.id).eq('status', 'PENDING'),
         supabase.from('reviews').select('rating').eq('babysitter_id', user.id),
       ]);
+
       const reviewsCount = reviews?.length ?? 0;
       const avgRating = reviewsCount > 0
-        ? Math.round((reviews!.reduce((s, r) => s + r.rating, 0) / reviewsCount) * 10) / 10 : 0;
-      setStats({ completed: completed ?? 0, rating: avgRating, reviewsCount, pending: pending ?? 0 });
+        ? Math.round((reviews!.reduce((s, r) => s + r.rating, 0) / reviewsCount) * 10) / 10
+        : 0;
+
+      setStats({
+        completed: completed ?? 0,
+        rating: avgRating,
+        reviewsCount,
+        pending: pendingCount ?? 0,
+      });
     } catch (e) {
       console.warn('[sitter-home] load error:', e);
     } finally {
-      setLoading(false); setRefreshing(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -166,7 +171,8 @@ export default function SitterHomeTab() {
       [
         { text: 'Keep it', style: 'cancel' },
         {
-          text: 'Decline', style: 'destructive',
+          text: 'Decline',
+          style: 'destructive',
           onPress: async () => {
             setActionLoading(req.id);
             await supabase.from('bookings').update({ status: 'DECLINED' }).eq('id', req.id);
@@ -189,7 +195,8 @@ export default function SitterHomeTab() {
   return (
     <View style={{ flex: 1, backgroundColor: '#F4F6F9' }}>
       <ScrollView
-        bounces={false} overScrollMode="never"
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={PRIMARY} />}
         contentContainerStyle={{ paddingBottom: 110 }}
@@ -197,7 +204,8 @@ export default function SitterHomeTab() {
         {/* ── Hero ── */}
         <LinearGradient
           colors={[PRIMARY, PRIMARY_DARK]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={{ paddingTop: insets.top + 12, paddingBottom: 28, overflow: 'hidden' }}
         >
           {/* Blobs */}
@@ -240,7 +248,7 @@ export default function SitterHomeTab() {
                 ? `You have ${stats.pending} pending request${stats.pending > 1 ? 's' : ''}`
                 : upcoming.length > 0
                   ? `${upcoming.length} upcoming booking${upcoming.length > 1 ? 's' : ''} this week`
-                  : 'No bookings yet — you\'re ready to accept!'}
+                  : "No bookings yet — you're ready to accept!"}
             </Text>
 
             {/* Stats bar */}
@@ -400,40 +408,75 @@ export default function SitterHomeTab() {
 
 const s = StyleSheet.create({
   iconBtn: {
-    width: 44, height: 44, borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bellBadge: {
-    position: 'absolute', top: -4, right: -4,
-    minWidth: 16, height: 16, borderRadius: 8,
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#FF5A8A',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
-    borderWidth: 2, borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   bellBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
   upcomingCard: {
-    flexDirection: 'row', backgroundColor: '#FFFFFF',
-    borderRadius: 16, overflow: 'hidden',
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
     marginBottom: 8,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
   upcomingAccent: { width: 4 },
   requestCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
     marginBottom: 10,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 10, elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
   urgentBadge: {
-    position: 'absolute', top: 10, right: 10, zIndex: 1,
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: '#EF4444', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99,
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 99,
   },
   actionBtn: {
-    flex: 1, height: 44, alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyBox: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 28,
-    alignItems: 'center', borderWidth: 1, borderColor: '#F0F0F0',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F0F0F0',
   },
 });

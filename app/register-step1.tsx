@@ -6,6 +6,7 @@ import * as WebBrowser from 'expo-web-browser';
 import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -85,11 +86,14 @@ export default function RegisterStep1Screen() {
     return phone.length >= Math.max(5, country.maxLength - 2) && phone.length <= country.maxLength;
   };
 
+  const nameRegex = /^[a-zA-ZÀ-ÿ\s'-]+$/;
   const isStep1Valid = 
-    firstName.trim().length > 0 && 
-    lastName.trim().length > 0 && 
+    firstName.trim().length > 0 && nameRegex.test(firstName.trim()) &&
+    lastName.trim().length > 0 && nameRegex.test(lastName.trim()) &&
     validateEmail(email) && 
-    validatePhone(phone, selectedCountry);
+    validatePhone(phone, selectedCountry) &&
+    photoUri !== null &&
+    city.trim().length > 0;
 
   const isStep2Valid = password && confirmPassword && password === confirmPassword && agreeTerms;
 
@@ -119,8 +123,13 @@ export default function RegisterStep1Screen() {
 
   const pickPhoto = async () => {
     try {
+      const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert('Permission needed', 'Please allow photo access to upload a profile picture.');
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
@@ -132,18 +141,69 @@ export default function RegisterStep1Screen() {
       const fileName = `avatar_${Date.now()}.${ext}`;
       const response = await fetch(asset.uri);
       const blob = await response.blob();
-      const { error } = await supabase.storage
+
+      const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, blob, { contentType: `image/${ext}` });
-      if (!error) {
+        .upload(fileName, blob, { contentType: `image/${ext}`, upsert: true });
+      if (!uploadError) {
         const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
         setPhotoUri(data.publicUrl);
+      } else {
+        console.warn('[photo] upload error:', uploadError.message);
+        // Use local URI as fallback so photo shows even if upload fails
+        setPhotoUri(asset.uri);
       }
     } catch (e) {
-      console.warn('[photo] pick error:', e);
+      console.warn('[photo] error:', e);
     } finally {
       setPhotoUploading(false);
     }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const permResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert('Permission needed', 'Please allow camera access.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      setPhotoUploading(true);
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop() ?? 'jpg';
+      const fileName = `avatar_${Date.now()}.${ext}`;
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, blob, { contentType: `image/${ext}`, upsert: true });
+      if (!uploadError) {
+        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        setPhotoUri(data.publicUrl);
+      } else {
+        console.warn('[photo] upload error:', uploadError.message);
+        // Use local URI as fallback so photo shows even if upload fails
+        setPhotoUri(asset.uri);
+      }
+    } catch (e) {
+      console.warn('[camera] error:', e);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const showPhotoOptions = () => {
+    Alert.alert('Profile Photo', 'Choose an option', [
+      { text: 'Take a photo', onPress: takePhoto },
+      { text: 'Choose from library', onPress: pickPhoto },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const signInWithProvider = async (provider: 'google' | 'apple' | 'facebook') => {
@@ -200,10 +260,23 @@ export default function RegisterStep1Screen() {
   };
 
   const handleStep1Continue = () => {
-    if (!firstName.trim()) { setErrorMessage('Please enter your first name.'); return; }
-    if (!lastName.trim()) { setErrorMessage('Please enter your last name.'); return; }
-    if (!validateEmail(email)) { setErrorMessage('Please enter a valid email address.'); return; }
-    if (!validatePhone(phone, selectedCountry)) { setErrorMessage('Please enter a valid phone number.'); return; }
+    const nameRegex = /^[a-zA-ZÀ-ÿ\s'-]+$/;
+    if (!nameRegex.test(firstName.trim())) {
+      setErrorMessage('First name must contain only letters.');
+      return;
+    }
+    if (!nameRegex.test(lastName.trim())) {
+      setErrorMessage('Last name must contain only letters.');
+      return;
+    }
+    if (!photoUri) {
+      setErrorMessage('Please add a profile photo.');
+      return;
+    }
+    if (!city.trim()) {
+      setErrorMessage('Please enter your city.');
+      return;
+    }
     setErrorMessage('');
     animateTransition(2);
   };
@@ -264,12 +337,11 @@ export default function RegisterStep1Screen() {
         return;
       }
 
-      // Save extra fields
-      const updates: Record<string, any> = {};
-      if (photoUri) updates.photo_url = photoUri;
-      if (city.trim()) updates.city = city.trim();
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('profiles').update(updates).eq('id', session.user.id);
+      // Save extra fields to profiles
+      const profileUpdates: Record<string, any> = {};
+      if (photoUri) profileUpdates.photo_url = photoUri;
+      if (Object.keys(profileUpdates).length > 0) {
+        await supabase.from('profiles').update(profileUpdates).eq('id', session.user.id);
       }
 
       if (userRole === 'BABY_SITTER') {
@@ -281,11 +353,13 @@ export default function RegisterStep1Screen() {
         }).eq('profile_id', session.user.id);
         router.replace('/(sitter-tabs)');
       } else {
-        if (neighborhood.trim()) {
+        // Fixed: use try/catch instead of .catch()
+        try {
           await supabase.from('parent_details').update({
-            address: `${neighborhood.trim()}, ${city.trim()}`.trim(),
+            city: city.trim() || null,
+            neighborhood: neighborhood.trim() || null,
           }).eq('profile_id', session.user.id);
-        }
+        } catch {}
         router.replace('/(tabs)');
       }
     } catch (err: any) {
@@ -349,28 +423,37 @@ export default function RegisterStep1Screen() {
 
                   {/* Profile photo */}
                   <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                    <TouchableOpacity onPress={pickPhoto} disabled={photoUploading} activeOpacity={0.85}>
+                    <TouchableOpacity onPress={showPhotoOptions} disabled={photoUploading} activeOpacity={0.85}>
                       <View style={{
-                        width: 80, height: 80, borderRadius: 40,
+                        width: 86, height: 86, borderRadius: 43,
                         backgroundColor: '#E1F5EE',
                         alignItems: 'center', justifyContent: 'center',
-                        borderWidth: 2, borderColor: Colors.light.primary,
+                        borderWidth: 2.5, borderColor: Colors.light.primary,
                         overflow: 'hidden',
                       }}>
                         {photoUri ? (
-                          <Image source={{ uri: photoUri }} style={{ width: 80, height: 80 }} resizeMode="cover" />
+                          <Image source={{ uri: photoUri }} style={{ width: 86, height: 86 }} resizeMode="cover" />
                         ) : photoUploading ? (
                           <ActivityIndicator color={Colors.light.primary} />
                         ) : (
-                          <Ionicons name="camera-outline" size={28} color={Colors.light.primary} />
+                          <Ionicons name="camera-outline" size={30} color={Colors.light.primary} />
                         )}
+                      </View>
+                      <View style={{
+                        position: 'absolute', bottom: 0, right: 0,
+                        backgroundColor: Colors.light.primary, borderRadius: 99,
+                        width: 24, height: 24, alignItems: 'center', justifyContent: 'center',
+                        borderWidth: 2, borderColor: '#FFFFFF',
+                      }}>
+                        <Ionicons name="add" size={14} color="#FFFFFF" />
                       </View>
                     </TouchableOpacity>
                     <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
-                      Add profile photo
+                      {photoUri ? 'Tap to change photo' : 'Add profile photo *'}
                     </Text>
                   </View>
 
+                  {/* Name row */}
                   <View style={styles.row}>
                     <View style={styles.col}>
                       <CustomInput label="FIRST NAME" placeholder="Sarah" iconName="person-outline" value={firstName} onChangeText={setFirstName} />
@@ -380,6 +463,64 @@ export default function RegisterStep1Screen() {
                       <CustomInput label="LAST NAME" placeholder="Johnson" iconName="person-outline" value={lastName} onChangeText={setLastName} />
                     </View>
                   </View>
+
+                  {/* City & Neighborhood */}
+                  <View style={styles.row}>
+                    <View style={styles.col}>
+                      <CustomInput
+                        label="CITY"
+                        placeholder="ex: Algiers"
+                        iconName="location-outline"
+                        value={city}
+                        onChangeText={setCity}
+                        autoCapitalize="words"
+                      />
+                    </View>
+                    <View style={{ width: 12 }} />
+                    <View style={styles.col}>
+                      <CustomInput
+                        label="NEIGHBORHOOD"
+                        placeholder="ex: Hlm"
+                        iconName="map-outline"
+                        value={neighborhood}
+                        onChangeText={setNeighborhood}
+                        autoCapitalize="words"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Sitter-specific fields */}
+                  {role === 'BABY_SITTER' && (
+                    <>
+                      <CustomInput
+                        label="HOURLY RATE (DZD)"
+                        placeholder="ex: 300"
+                        iconName="cash-outline"
+                        keyboardType="numeric"
+                        value={hourlyRate}
+                        onChangeText={setHourlyRate}
+                      />
+                      <View style={{ marginBottom: 16 }}>
+                        <Text style={styles.label}>EXPERIENCE</Text>
+                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                          {['1–2 years', '3–5 years', '5+ years'].map(exp => (
+                            <TouchableOpacity
+                              key={exp}
+                              style={[
+                                styles.expChip,
+                                experience === exp && styles.expChipActive,
+                              ]}
+                              onPress={() => setExperience(exp)}
+                            >
+                              <Text style={[styles.expChipText, experience === exp && styles.expChipTextActive]}>
+                                {exp}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </>
+                  )}
 
                   <View style={{ marginBottom: 16 }}>
                     <CustomInput 
@@ -520,64 +661,6 @@ export default function RegisterStep1Screen() {
                       <Ionicons name="alert-circle" size={14} color="#EF4444" />
                       <Text style={styles.errorText}>Passwords don&apos;t match</Text>
                     </View>
-                  )}
-
-                  {/* City & Neighborhood — for all users */}
-                  <View style={styles.row}>
-                    <View style={styles.col}>
-                      <CustomInput
-                        label="CITY"
-                        placeholder="Relizane"
-                        iconName="location-outline"
-                        value={city}
-                        onChangeText={setCity}
-                        autoCapitalize="words"
-                      />
-                    </View>
-                    <View style={{ width: 12 }} />
-                    <View style={styles.col}>
-                      <CustomInput
-                        label="NEIGHBORHOOD"
-                        placeholder="Hay El Badr"
-                        iconName="map-outline"
-                        value={neighborhood}
-                        onChangeText={setNeighborhood}
-                        autoCapitalize="words"
-                      />
-                    </View>
-                  </View>
-
-                  {/* Sitter-specific fields */}
-                  {role === 'BABY_SITTER' && (
-                    <>
-                      <CustomInput
-                        label="HOURLY RATE (DZD)"
-                        placeholder="300"
-                        iconName="cash-outline"
-                        keyboardType="numeric"
-                        value={hourlyRate}
-                        onChangeText={setHourlyRate}
-                      />
-                      <View style={{ marginBottom: 16 }}>
-                        <Text style={styles.label}>EXPERIENCE</Text>
-                        <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
-                          {['1–2 years', '3–5 years', '5+ years'].map(exp => (
-                            <TouchableOpacity
-                              key={exp}
-                              style={[
-                                styles.expChip,
-                                experience === exp && styles.expChipActive,
-                              ]}
-                              onPress={() => setExperience(exp)}
-                            >
-                              <Text style={[styles.expChipText, experience === exp && styles.expChipTextActive]}>
-                                {exp}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    </>
                   )}
 
                   {/* Terms Checkbox */}
@@ -731,7 +814,7 @@ const styles = StyleSheet.create({
 
   // Phone
   phoneContainer: { marginBottom: 16 },
-  label: { fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 8, letterSpacing: 0.5 },
+  label: { fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 4, letterSpacing: 0.5 },
   phoneRow: { flexDirection: 'row', gap: 10 },
   countryCodePicker: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

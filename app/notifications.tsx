@@ -114,7 +114,7 @@ function timeAgo(iso: string): string {
 export default function NotificationsScreen() {
   const insets   = useSafeAreaInsets();
   const router   = useRouter();
-  const { session } = useAuth();
+  const { session, profile } = useAuth();   // Added profile
   const { isPhone } = useResponsive();
   const contentMaxWidth = isPhone ? undefined : READING_MAX_WIDTH;
 
@@ -127,7 +127,6 @@ export default function NotificationsScreen() {
 
   const load = useCallback(async () => {
     if (!userId) {
-      // Visitor / no session → use mock with persisted read state
       try {
         const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
         const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
@@ -156,7 +155,6 @@ export default function NotificationsScreen() {
 
     if (error) {
       console.warn('[notifications] fetch error:', error.message);
-      // Fallback to mock with persistence
       try {
         const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
         const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
@@ -170,7 +168,6 @@ export default function NotificationsScreen() {
       }
       setUsingMock(true);
     } else if (!data || data.length === 0) {
-      // No real notifications yet → show persisted mock
       try {
         const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
         const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
@@ -190,10 +187,8 @@ export default function NotificationsScreen() {
     setLoading(false);
   }, [userId]);
 
-  // Load on mount / when user changes.
   useEffect(() => { load(); }, [load]);
 
-  // Refresh whenever the screen gains focus.
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const onRefresh = useCallback(async () => {
@@ -210,7 +205,6 @@ export default function NotificationsScreen() {
     if (!usingMock && userId) {
       await supabase.from('notifications').update({ is_read: true }).eq('id', id);
     } else if (usingMock) {
-      // Persist mock read state
       try {
         const readIdsRaw = await AsyncStorage.getItem(MOCK_READ_KEY);
         const readIds: string[] = JSON.parse(readIdsRaw ?? '[]');
@@ -240,7 +234,6 @@ export default function NotificationsScreen() {
         await load();
       }
     } else if (usingMock) {
-      // Persist all as read for mock mode
       const allIds = items.map(n => String(n.id));
       try {
         await AsyncStorage.setItem(MOCK_READ_KEY, JSON.stringify(allIds));
@@ -254,14 +247,18 @@ export default function NotificationsScreen() {
     if (!n.is_read) await markAsRead(n.id);
 
     const bookingId = n.data?.booking_id;
-    const sitterId  = n.data?.sitter_id ?? n.data?.babysitter_id;
+    if (!bookingId) return;
 
-    if (bookingId) {
+    // Fix: Route based on user role
+    if (profile?.role === 'BABY_SITTER') {
+      router.push({ 
+        pathname: '/job/[id]' as any, 
+        params: { id: String(bookingId), passedStatus: 'PENDING' } 
+      });
+    } else {
       router.push({ pathname: '/booking/[id]', params: { id: String(bookingId) } });
-    } else if (sitterId) {
-      router.push({ pathname: '/sitter/[id]', params: { id: String(sitterId) } });
     }
-  }, [markAsRead, router]);
+  }, [markAsRead, router, profile]);
 
   return (
     <View style={[s.page, { paddingTop: insets.top, alignItems: 'center' }]}>

@@ -125,7 +125,8 @@ export default function BookingConfirmScreen() {
         if (error) {
           console.warn('[confirm] insert error:', error.message);
         } else if (insertedData && params.sitterId) {
-          // Notify sitter about new booking
+          // DB trigger already created the in-app notification
+          // Just send the device push notification
           await sendPushToUser(
             params.sitterId,
             'New booking request 📋',
@@ -168,8 +169,21 @@ export default function BookingConfirmScreen() {
           >
             <Ionicons name="chevron-back" size={22} color={Colors.light.text} />
           </Pressable>
+
           <Text style={styles.headerTitle}>Confirm booking</Text>
-          <View style={styles.backBtn} />
+
+          {/* X button to cancel and go back to search */}
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              router.replace('/(tabs)/search');
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel booking"
+          >
+            <Ionicons name="close" size={22} color="#6B7280" />
+          </Pressable>
         </View>
       </SafeAreaView>
 
