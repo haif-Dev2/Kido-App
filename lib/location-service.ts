@@ -83,15 +83,29 @@ export async function getCurrentLocation() {
       return null;
     }
 
-    const location = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-
-    return {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      accuracy: location.coords.accuracy,
-    };
+    // Try precise location first
+    try {
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      return {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        accuracy: location.coords.accuracy,
+      };
+    } catch {
+      // Falls here on emulator when GPS unavailable — try last known position
+      // (works after setting location in Android Studio Extended Controls)
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) {
+        return {
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+          accuracy: last.coords.accuracy,
+        };
+      }
+      return null;
+    }
   } catch (error) {
     console.warn('Error getting current location:', error);
     return null;

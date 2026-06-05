@@ -430,6 +430,7 @@ export function Map({
     ? (userLocationOverride ?? deviceLocation ?? null)
     : null;
 
+
   const html = buildLeafletHTML(effectiveCenter, userDot, markers, zoom);
 
   return (

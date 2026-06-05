@@ -27,9 +27,14 @@ export async function registerPushToken(): Promise<void> {
     if (finalStatus !== 'granted') return; // user denied
 
     // Get the Expo push token
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: '291c7299-9916-4044-bb8c-e034b6787bf1', // your EAS project ID from app.json
-    });
+    let tokenData;
+    try {
+      tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '291c7299-9916-4044-bb8c-e034b6787bf1', // your EAS project ID from app.json
+      });
+    } catch {
+      return; // Firebase not configured — skip silently
+    }
 
     const token = tokenData.data;
     const platform = Platform.OS; // 'android' or 'ios'

@@ -74,7 +74,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     languages: ['Arabic', 'French'],
     specialties: ['Infants', 'Overnight', 'First aid'],
     responseMinutes: 4,
-    govIdVerified: true, policeCheck: true, availableNow: false,
+    govIdVerified: true, policeCheck: true, availableNow: true,
     latitude: 36.7200, longitude: 3.1000,
   },
   {
@@ -125,7 +125,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     languages: ['Arabic', 'French'],
     specialties: ['Toddlers', 'Bedtime routines'],
     responseMinutes: 9,
-    govIdVerified: true, policeCheck: false, availableNow: false,
+    govIdVerified: true, policeCheck: false, availableNow: true,
     latitude: 36.7500, longitude: 2.9500,
   },
 
@@ -188,7 +188,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     responseMinutes: 15,
     govIdVerified: true,
     policeCheck: true,
-    availableNow: false,
+    availableNow: true,
     latitude: 35.7420,
     longitude: 0.5750,
   },
@@ -264,7 +264,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     neighborhood: 'Salamandre', distanceKm: 2.1, reviewsCount: 18,
     bio: 'Mother of three, experienced with all age groups. Warm and nurturing approach.',
     languages: ['Arabic', 'French'], specialties: ['Overnight', 'Infants', 'First aid'],
-    responseMinutes: 6, govIdVerified: true, policeCheck: true, availableNow: false,
+    responseMinutes: 6, govIdVerified: true, policeCheck: true, availableNow: true,
     latitude: 35.9200, longitude: 0.0760,
   },
   {
@@ -292,7 +292,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     neighborhood: 'Mesra', distanceKm: 7.8, reviewsCount: 13,
     bio: 'Professional nanny from Mesra. Speaks Arabic, French and basic English.',
     languages: ['Arabic', 'French', 'English'], specialties: ['Toddlers', 'Bilingual'],
-    responseMinutes: 14, govIdVerified: true, policeCheck: false, availableNow: false,
+    responseMinutes: 14, govIdVerified: true, policeCheck: false, availableNow: true,
     latitude: 35.8892, longitude: 0.1156,
   },
   {
@@ -334,7 +334,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     neighborhood: 'Sidi Ali', distanceKm: 36.4, reviewsCount: 16,
     bio: 'Psychology student in Sidi Ali. Gentle approach and great communication with children.',
     languages: ['Arabic', 'French', 'English'], specialties: ['School-age', 'Homework help'],
-    responseMinutes: 22, govIdVerified: true, policeCheck: true, availableNow: false,
+    responseMinutes: 22, govIdVerified: true, policeCheck: true, availableNow: true,
     latitude: 36.1031, longitude: 0.4539,
   },
   {
@@ -376,7 +376,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     neighborhood: 'Fornaka', distanceKm: 22.1, reviewsCount: 17,
     bio: 'Agriculture student from Fornaka. Creative nature-based activities for curious kids.',
     languages: ['Arabic', 'French'], specialties: ['School-age', 'Arts & crafts'],
-    responseMinutes: 19, govIdVerified: false, policeCheck: true, availableNow: false,
+    responseMinutes: 19, govIdVerified: false, policeCheck: true, availableNow: true,
     latitude: 36.0189, longitude: 0.3786,
   },
   {
@@ -418,7 +418,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     neighborhood: 'Nekmaria', distanceKm: 38.2, reviewsCount: 11,
     bio: 'French-language teacher in Nekmaria. Bilingual household specialist.',
     languages: ['Arabic', 'French'], specialties: ['Bilingual', 'Homework help', 'School-age'],
-    responseMinutes: 17, govIdVerified: true, policeCheck: true, availableNow: false,
+    responseMinutes: 17, govIdVerified: true, policeCheck: true, availableNow: true,
     latitude: 36.0369, longitude: 0.4786,
   },
   {
@@ -446,7 +446,7 @@ export const MOCK_SITTERS: MockSitter[] = [
     neighborhood: 'Ouled Maallah', distanceKm: 14.2, reviewsCount: 13,
     bio: 'Physical coach from Ouled Maallah. Active play, sports activities, great energy with kids.',
     languages: ['Arabic', 'French'], specialties: ['School-age', 'Arts & crafts'],
-    responseMinutes: 14, govIdVerified: true, policeCheck: true, availableNow: false,
+    responseMinutes: 14, govIdVerified: true, policeCheck: true, availableNow: true,
     latitude: 35.8253, longitude: 0.2094,
   },
   {

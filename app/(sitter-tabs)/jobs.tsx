@@ -152,7 +152,6 @@ export default function JobsTab() {
     haptics.medium();
     setActionLoading(job.id);
     try {
-      // Mock jobs don't exist in Supabase — skip DB call, just update local state
       const isMock = job.id.startsWith('mock-') || job.id.startsWith('req-');
 
       if (!isMock) {
@@ -173,7 +172,6 @@ export default function JobsTab() {
       );
       haptics.success();
 
-      // Notify the parent that their booking was confirmed
       await sendPushToUser(
         job.parentId,
         'Booking confirmed ✓',
@@ -218,7 +216,6 @@ export default function JobsTab() {
           );
           setActionLoading(null);
 
-          // Notify parent that the sitter declined
           if (!isMock) {
             await sendPushToUser(
               job.parentId,
@@ -383,7 +380,7 @@ export default function JobsTab() {
             filtered.map((job) => {
               const config = (
                 job.status === BookingStatus.CANCELLED && job.cancellationReason === 'sitter_cancelled'
-                  ? STATUS_COLORS.DECLINED  // red styling for sitter-cancelled jobs
+                  ? STATUS_COLORS.DECLINED
                   : STATUS_COLORS[job.status]
               ) ?? STATUS_COLORS.PENDING;
 
@@ -411,7 +408,6 @@ export default function JobsTab() {
                           style={{ width: 50, height: 50, borderRadius: 14 }}
                           contentFit="cover"
                         />
-                        {/* Rating badge on avatar */}
                         {job.parentRating > 0 && (
                           <View style={{
                             position: 'absolute', bottom: -4, right: -4,
@@ -466,7 +462,6 @@ export default function JobsTab() {
 
                   {/* Unified Action buttons */}
                   <View style={s.cardBottom}>
-                    {/* Details always on the left */}
                     <TouchableOpacity
                       style={s.detailsBtn}
                       onPress={() => router.push({ 
@@ -484,7 +479,6 @@ export default function JobsTab() {
                     </TouchableOpacity>
 
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {/* PENDING: decline (X) + accept (✓) */}
                       {job.status === BookingStatus.PENDING && (
                         <>
                           <TouchableOpacity
@@ -508,7 +502,6 @@ export default function JobsTab() {
                         </>
                       )}
 
-                      {/* CONFIRMED: Cancel button */}
                       {job.status === BookingStatus.CONFIRMED && (
                         <TouchableOpacity
                           style={[s.iconBtn, { backgroundColor: '#FEF2F2', width: 'auto' as any, paddingHorizontal: 12 }]}
@@ -522,7 +515,6 @@ export default function JobsTab() {
                         </TouchableOpacity>
                       )}
 
-                      {/* IN_PROGRESS: complete button */}
                       {job.status === BookingStatus.IN_PROGRESS && (
                         <TouchableOpacity
                           style={[s.iconBtn, { backgroundColor: '#E1F5EE', width: 'auto' as any, paddingHorizontal: 14 }]}

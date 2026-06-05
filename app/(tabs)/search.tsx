@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -23,6 +23,7 @@ import { applyRealDistances, fetchSitters } from '../../lib/api/sitters';
 import { calculateDistance, getCurrentLocation } from '../../lib/location-service';
 import { MOCK_SITTERS, type MockSitter } from '../../lib/mock/sitters';
 import { useResponsive } from '../../lib/responsive';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../providers/auth-provider';
 import { useFavoritesStore } from '../../store/favorites-store';
 
@@ -34,7 +35,7 @@ type GeoSuggestion = {
   displayName: string;
   lat: number;
   lon: number;
-  boundingBox: [number, number, number, number]; // [minLat, maxLat, minLon, maxLon]
+  boundingBox: [number, number, number, number];
 };
 
 // Clean Tifinagh (Amazigh) characters
@@ -70,7 +71,7 @@ const ALGERIA_AREAS: GeoSuggestion[] = [
   { name: 'Khadra',        displayName: 'Khadra, Mostaganem, Algérie',                 lat: 35.9892, lon: 0.0203,  boundingBox: [35.96, 36.02, -0.02, 0.07]  },
   { name: 'Ouled Maallah', displayName: 'Ouled Maallah, Mostaganem, Algérie',          lat: 35.8253, lon: 0.2094,  boundingBox: [35.79, 35.86, 0.16,  0.26]  },
   { name: 'Oued El Kheir', displayName: 'Oued El Kheir, Mostaganem, Algérie',          lat: 35.9592, lon: 0.1739,  boundingBox: [35.93, 35.99, 0.14,  0.21]  },
-  // Relizane city & communes — precise commune bboxes
+  // Relizane city & communes
   { name: 'Relizane',      displayName: 'Relizane, Wilaya de Relizane, Algérie',       lat: 35.7343, lon: 0.5568,  boundingBox: [35.68, 35.79, 0.49,  0.63]  },
   { name: 'Hay El Badr',   displayName: 'Hay El Badr, Relizane, Algérie',              lat: 35.7420, lon: 0.5750,  boundingBox: [35.72, 35.76, 0.55,  0.60]  },
   { name: 'Sidi Khettab',  displayName: 'Sidi Khettab, Relizane, Algérie',             lat: 35.7200, lon: 0.5500,  boundingBox: [35.70, 35.74, 0.53,  0.57]  },
@@ -83,12 +84,10 @@ const ALGERIA_AREAS: GeoSuggestion[] = [
   { name: 'Dely Ibrahim',  displayName: 'Dely Ibrahim, Alger, Algérie',               lat: 36.7500, lon: 2.9500,  boundingBox: [36.73, 36.77, 2.92,  2.98]  },
 ];
 
-// ── Nominatim geo search ──
 async function fetchGeoSuggestions(query: string): Promise<GeoSuggestion[]> {
   if (!query || query.trim().length < 2) return [];
   const q = query.trim().toLowerCase();
 
-  // Instant local matches
   const localMatches = ALGERIA_AREAS.filter(a =>
     a.name.toLowerCase().includes(q) || a.displayName.toLowerCase().includes(q)
   ).slice(0, 3);
@@ -146,7 +145,6 @@ export default function SearchScreen() {
   const [sort, setSort] = useState<SortKey>('relevance');
   const [mode, setMode] = useState<ViewMode>('list');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [availableNowOnly, setAvailableNowOnly] = useState(false);
   const [sitters, setSitters] = useState<MockSitter[]>(MOCK_SITTERS);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -161,6 +159,20 @@ export default function SearchScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locationAttempted, setLocationAttempted] = useState(false);
 
+  // Live sitters from real-time DB
+  const [liveSitters, setLiveSitters] = useState<Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    photo: string | null;
+    lat: number;
+    lon: number;
+    hourlyRate: number;
+    avgRating: number;
+    reviewsCount: number;
+    neighborhood: string;
+  }>>([]);
+
   const [noLocationFound, setNoLocationFound] = useState(false);
 
   const pendingSubmitRef = useRef(false);
@@ -173,7 +185,6 @@ export default function SearchScreen() {
   const [pendingMaxPrice, setPendingMaxPrice] = useState(0);
   const [pendingMaxDist, setPendingMaxDist] = useState(0);
   const [pendingVerified, setPendingVerified] = useState(false);
-  const [pendingAvailNow, setPendingAvailNow] = useState(false);
 
   const gridCols = isDesktop ? 3 : isTablet ? 2 : 1;
   const { height: SCREEN_H } = Dimensions.get('window');
@@ -185,6 +196,7 @@ export default function SearchScreen() {
 
   useEffect(() => { hydrateFavorites(); }, [hydrateFavorites]);
 
+  // Request location on mount
   useEffect(() => {
     fetchSitters().then(async (list) => {
       setSitters(list);
@@ -204,16 +216,58 @@ export default function SearchScreen() {
     });
   }, []);
 
+  // Fetch live sitters from sitter_locations table
+  const fetchLiveSitters = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('sitter_locations')
+      .select(`
+        sitter_id, latitude, longitude, neighborhood,
+        sitter:profiles!sitter_id(
+          first_name, last_name, photo_url,
+          babysitter_details(hourly_rate, average_rating, reviews_count, identity_verified)
+        )
+      `)
+      .eq('is_available', true);
+
+    if (error) {
+      console.warn('[fetchLiveSitters] error:', error.message);
+      return;
+    }
+
+    if (data) {
+      setLiveSitters(data.map((row: any) => ({
+        id: row.sitter_id,
+        firstName: row.sitter?.first_name ?? '',
+        lastName: row.sitter?.last_name ?? '',
+        photo: row.sitter?.photo_url ?? null,
+        lat: Number(row.latitude),
+        lon: Number(row.longitude),
+        neighborhood: row.neighborhood ?? '',
+        hourlyRate: row.sitter?.babysitter_details?.hourly_rate ?? 0,
+        avgRating: row.sitter?.babysitter_details?.average_rating ?? 0,
+        reviewsCount: row.sitter?.babysitter_details?.reviews_count ?? 0,
+      })));
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLiveSitters();
+    const interval = setInterval(fetchLiveSitters, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchLiveSitters]);
+
+  useFocusEffect(useCallback(() => {
+    fetchLiveSitters();
+  }, [fetchLiveSitters]));
+
   // ── Debounced suggestion fetch ──
   useEffect(() => {
     const q = query.trim();
 
     if (!q) {
-      // User cleared input — only hide suggestions, keep everything else frozen
       setSuggestions([]);
       setShowSuggestions(false);
       setLoadingSuggestions(false);
-      // Do NOT reset noLocationFound so invalid search state is preserved
       return;
     }
 
@@ -266,7 +320,7 @@ export default function SearchScreen() {
   };
 
   const activeFilterCount =
-    (verifiedOnly ? 1 : 0) + (availableNowOnly ? 1 : 0) +
+    (verifiedOnly ? 1 : 0) +
     (minRating > 0 ? 1 : 0) + (maxPrice > 0 ? 1 : 0) + (maxDistanceKm > 0 ? 1 : 0);
 
   const hasActiveSearch = searchCenter !== null || noLocationFound;
@@ -276,7 +330,6 @@ export default function SearchScreen() {
     setPendingMaxPrice(maxPrice);
     setPendingMaxDist(maxDistanceKm);
     setPendingVerified(verifiedOnly);
-    setPendingAvailNow(availableNowOnly);
     setShowFilters(true);
   };
 
@@ -285,7 +338,6 @@ export default function SearchScreen() {
     setMaxPrice(pendingMaxPrice);
     setMaxDistanceKm(pendingMaxDist);
     setVerifiedOnly(pendingVerified);
-    setAvailableNowOnly(pendingAvailNow);
     setShowFilters(false);
   };
 
@@ -294,16 +346,55 @@ export default function SearchScreen() {
     setPendingMaxPrice(0);
     setPendingMaxDist(0);
     setPendingVerified(false);
-    setPendingAvailNow(false);
   };
 
   const results = useMemo<MockSitter[]>(() => {
     if (noLocationFound) return [];
     if (!searchCenter) return [];
 
-    const [minLat, maxLat, minLon, maxLon] = searchCenter.boundingBox;
+    // Convert live sitters to MockSitter shape
+    const liveSitterIds = new Set(liveSitters.map(s => s.id));
+    const liveAsMock: MockSitter[] = liveSitters
+      .filter(s => inBBox(s.lat, s.lon, searchCenter.boundingBox))
+      .map(s => ({
+        // BabySitter base fields
+        id: s.id as any,
+        uuid: s.id,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        email: '',
+        phone: '',
+        photo: s.photo ?? 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=200',
+        role: 'BABY_SITTER' as any,
+        createdAt: new Date().toISOString(),
+        isVerified: false,
+        experience: '1–2 years',
+        hourlyRate: s.hourlyRate,
+        availabilities: [],
+        averageRating: s.avgRating,
+        location: s.neighborhood && s.neighborhood !== 'Algeria' ? s.neighborhood : 'Algeria',
+        isValidated: true,
+        identityVerified: false,
+        // MockSitter extended fields
+        neighborhood: s.neighborhood || 'Algeria',
+        distanceKm: Math.round(
+          calculateDistance(searchCenter.lat, searchCenter.lon, s.lat, s.lon) * 10
+        ) / 10,
+        reviewsCount: s.reviewsCount,
+        bio: '',
+        languages: [],
+        specialties: [],
+        responseMinutes: 30,
+        govIdVerified: false,
+        policeCheck: false,
+        availableNow: true,
+        latitude: s.lat,
+        longitude: s.lon,
+      }));
 
-    return sitters
+    // Mock sitters (exclude duplicates) — only show available ones
+    const mockResults = sitters
+      .filter(s => !liveSitterIds.has(s.uuid ?? String(s.id)))
       .map(s => ({
         ...s,
         distanceKm: Math.round(
@@ -313,29 +404,46 @@ export default function SearchScreen() {
       .filter(s => {
         if (!inBBox(s.latitude, s.longitude, searchCenter.boundingBox)) return false;
         if (verifiedOnly && !s.identityVerified) return false;
-        if (availableNowOnly && !s.availableNow) return false;
         if (minRating > 0 && s.averageRating < minRating) return false;
         if (maxPrice > 0 && s.hourlyRate > maxPrice) return false;
         return true;
-      })
-      .sort((a, b) => {
-        switch (sort) {
-          case 'distance': return a.distanceKm - b.distanceKm;
-          case 'rating':   return b.averageRating - a.averageRating;
-          case 'price':    return a.hourlyRate - b.hourlyRate;
-          default:         return a.distanceKm - b.distanceKm;
-        }
       });
-  }, [sitters, searchCenter, noLocationFound, sort, verifiedOnly, availableNowOnly, minRating, maxPrice]);
 
+    return [...liveAsMock, ...mockResults].sort((a, b) => {
+      switch (sort) {
+        case 'distance': return a.distanceKm - b.distanceKm;
+        case 'rating':   return b.averageRating - a.averageRating;
+        case 'price':    return a.hourlyRate - b.hourlyRate;
+        default:         return a.distanceKm - b.distanceKm;
+      }
+    });
+  }, [liveSitters, sitters, searchCenter, noLocationFound, sort, verifiedOnly, minRating, maxPrice, userLocation]);
+
+  // Only show live (available) sitters + mock demo sitters on the map
   const mapMarkers = useMemo(() => {
-    return sitters.map(s => ({
-      latitude: s.latitude,
-      longitude: s.longitude,
-      title: `${s.firstName} ${s.lastName}`,
+    // Live sitters — only those with is_available=true in sitter_locations
+    const live = liveSitters.map(s => ({
+      latitude: s.lat,
+      longitude: s.lon,
+      title: `${s.firstName} ${s.lastName}`.trim() || 'Sitter',
       description: `${s.hourlyRate} DZD/hr`,
+      markerId: s.id,
     }));
-  }, [sitters]);
+
+    // Mock sitters — always show (demo data)
+    const liveIds = new Set(liveSitters.map(s => s.id));
+    const mock = MOCK_SITTERS
+      .filter(s => !liveIds.has(s.uuid ?? String(s.id)))
+      .map(s => ({
+        latitude: s.latitude,
+        longitude: s.longitude,
+        title: `${s.firstName} ${s.lastName}`,
+        description: `${s.hourlyRate} DZD/hr`,
+        markerId: s.uuid ?? String(s.id),
+      }));
+
+    return [...live, ...mock];
+  }, [liveSitters]);
 
   return (
     <View style={[s.page, { paddingTop: insets.top }]}>
@@ -367,7 +475,6 @@ export default function SearchScreen() {
                 setQuery('');
                 setSuggestions([]);
                 setShowSuggestions(false);
-                // Do NOT reset noLocationFound here
               }}
               hitSlop={8}
             >
@@ -450,9 +557,14 @@ export default function SearchScreen() {
             zoom={searchCenter ? zoomFromBBox(searchCenter.boundingBox) : 12}
             height={mode === 'map' ? '100%' : listMapHeight}
             onMarkerPress={(marker) => {
-              const sitter = sitters.find(s => `${s.firstName} ${s.lastName}` === marker.title);
-              if (sitter) {
-                router.push({ pathname: '/sitter/[id]', params: { id: sitter.uuid ?? String(sitter.id) } });
+              const liveSitter = liveSitters.find(s => s.id === marker.markerId);
+              if (liveSitter) {
+                router.push({ pathname: '/sitter/[id]', params: { id: liveSitter.id } });
+                return;
+              }
+              const mockSitter = MOCK_SITTERS.find(s => (s.uuid ?? String(s.id)) === marker.markerId);
+              if (mockSitter) {
+                router.push({ pathname: '/sitter/[id]', params: { id: mockSitter.uuid ?? String(mockSitter.id) } });
               }
             }}
           />
@@ -603,13 +715,6 @@ export default function SearchScreen() {
                   >
                     <Ionicons name="shield-checkmark-outline" size={14} color={pendingVerified ? '#fff' : Colors.light.primary} />
                     <Text style={[s.toggleChipTxt, pendingVerified && s.toggleChipTxtActive]}>Verified only</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[s.toggleChip, pendingAvailNow && s.toggleChipActive]}
-                    onPress={() => setPendingAvailNow(v => !v)}
-                  >
-                    <Ionicons name="flash-outline" size={14} color={pendingAvailNow ? '#fff' : Colors.light.primary} />
-                    <Text style={[s.toggleChipTxt, pendingAvailNow && s.toggleChipTxtActive]}>Available now</Text>
                   </TouchableOpacity>
                 </View>
               </View>

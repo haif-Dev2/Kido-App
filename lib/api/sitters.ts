@@ -83,7 +83,6 @@ function rowToMockSitter(row: any): MockSitter {
     policeCheck: row.police_check ?? false,
     availableNow: row.is_available_now ?? false,
     // Use real DB coords if available; fall back to a neighbourhood spread
-    // so real sitters don't all cluster at the exact same map point.
     latitude: row.latitude ?? fallbackCoords(row.profile_id).lat,
     longitude: row.longitude ?? fallbackCoords(row.profile_id).lon,
   };
@@ -103,7 +102,12 @@ export async function fetchSitters(): Promise<MockSitter[]> {
       .order('average_rating', { ascending: false });
 
     if (error || !data || data.length === 0) return MOCK_SITTERS;
-    return data.map(rowToMockSitter);
+
+    const realSitters = data.map(rowToMockSitter);
+    const realIds = new Set(realSitters.map(s => s.uuid));
+
+    // Merge: real sitters first, then mock sitters that don't have a real DB counterpart
+    return [...realSitters, ...MOCK_SITTERS.filter(m => !realIds.has(m.uuid))];
   } catch {
     return MOCK_SITTERS;
   }

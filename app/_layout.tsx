@@ -74,7 +74,6 @@ export default function RootLayout() {
             <Stack.Screen name="review/new/[bookingId]" options={{ presentation: 'modal' }} />
             <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
             <Stack.Screen name="edit-profile" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="sitter-home" options={{ animation: 'fade', gestureEnabled: false }} />
             <Stack.Screen name="(sitter-tabs)" options={{ animation: 'fade', gestureEnabled: false }} />
           </Stack>
         </BottomSheetModalProvider>

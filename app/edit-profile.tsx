@@ -34,6 +34,11 @@ export default function EditProfileScreen() {
   const [city, setCity] = useState('');
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
+  // Sitter-specific
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [experience, setExperience] = useState('1–2 years');
+  const [neighborhood, setNeighborhood] = useState('');
+  const isSitter = profile?.role === 'BABY_SITTER';
 
   // Photo upload state
   const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
@@ -44,6 +49,7 @@ export default function EditProfileScreen() {
 
   const photoUri = localPhotoUri ?? profile?.photo_url ?? null;
 
+  // Updated useEffect — loads profile + sitter fields
   useEffect(() => {
     if (profile) {
       setFirstName(profile.first_name ?? '');
@@ -51,6 +57,21 @@ export default function EditProfileScreen() {
       setPhone(profile.phone ?? '');
       setCity((profile as any).city ?? '');
       setBio((profile as any).bio ?? '');
+
+      if (profile.role === 'BABY_SITTER') {
+        supabase
+          .from('babysitter_details')
+          .select('hourly_rate, experience, neighborhood')
+          .eq('profile_id', profile.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) {
+              setHourlyRate(String(data.hourly_rate ?? 300));
+              setExperience(data.experience ?? '1–2 years');
+              setNeighborhood(data.neighborhood ?? '');
+            }
+          });
+      }
     }
   }, [profile]);
 
@@ -81,6 +102,15 @@ export default function EditProfileScreen() {
         .eq('id', user.id);
 
       if (error) throw error;
+
+      // Save sitter-specific fields
+      if (isSitter) {
+        await supabase.from('babysitter_details').update({
+          hourly_rate: parseInt(hourlyRate) || 300,
+          experience,
+          neighborhood: neighborhood.trim() || null,
+        }).eq('profile_id', user.id);
+      }
 
       await refreshProfile();
       Alert.alert('Saved', 'Your profile has been updated.', [
@@ -205,6 +235,47 @@ export default function EditProfileScreen() {
             placeholder="Mom of two. Looking for reliable babysitters..."
             multiline
           />
+
+          {/* Sitter-only fields */}
+          {isSitter && (
+            <>
+              <Field
+                label="Hourly rate (DZD)"
+                value={hourlyRate}
+                onChange={setHourlyRate}
+                placeholder="e.g. 300"
+                keyboardType="numeric"
+              />
+
+              <View style={s.fieldWrap}>
+                <Text style={s.fieldLabel}>Experience</Text>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                  {['1–2 years', '3–5 years', '5+ years'].map(exp => (
+                    <TouchableOpacity
+                      key={exp}
+                      style={[
+                        s.expChip,
+                        experience === exp && s.expChipActive,
+                      ]}
+                      onPress={() => setExperience(exp)}
+                    >
+                      <Text style={[s.expChipText, experience === exp && s.expChipTextActive]}>
+                        {exp}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <Field
+                label="Neighborhood"
+                value={neighborhood}
+                onChange={setNeighborhood}
+                placeholder="e.g. Hay El Badr, Relizane"
+                autoCapitalize="words"
+              />
+            </>
+          )}
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -321,4 +392,20 @@ const s = StyleSheet.create({
   },
   fieldDisabled: { backgroundColor: '#F9FAFB' },
   fieldDisabledText: { fontSize: 15, color: '#9CA3AF' },
+
+  // Sitter chip styles
+  expChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  expChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  expChipText: { fontSize: 13, fontWeight: '600', color: '#374151' },
+  expChipTextActive: { color: '#FFFFFF' },
 });

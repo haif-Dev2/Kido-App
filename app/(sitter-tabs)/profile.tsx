@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -37,7 +37,29 @@ export default function SitterProfileTab() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { profile } = useAuth();
-  const [isAvailable, setIsAvailable] = useState(true);
+  const [isAvailable, setIsAvailable] = useState(false);
+
+  // Request location permission early so it's ready when the sitter toggles availability
+  useEffect(() => {
+    Location.requestForegroundPermissionsAsync().catch(() => {});
+  }, []);
+
+  // ADD — loads real availability from DB on mount
+  useEffect(() => {
+    const loadAvailability = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('sitter_locations')
+          .select('is_available')
+          .eq('sitter_id', user.id)
+          .maybeSingle();
+        setIsAvailable(data?.is_available ?? false);
+      } catch {}
+    };
+    loadAvailability();
+  }, []);
 
   const photoUri = profile?.photo_url
     ?? 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=200';
@@ -54,6 +76,25 @@ export default function SitterProfileTab() {
         text: 'Log out',
         style: 'destructive',
         onPress: async () => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+              // Mark sitter as unavailable before logging out
+              await supabase.from('sitter_locations')
+                .upsert({
+                  sitter_id: user.id,
+                  latitude: 0,
+                  longitude: 0,
+                  is_available: false,
+                  updated_at: new Date().toISOString(),
+                });
+              await supabase.from('babysitter_details')
+                .update({ is_available: false })
+                .eq('profile_id', user.id);
+            }
+          } catch (e) {
+            console.warn('[logout] could not disable availability:', e);
+          }
           await supabase.auth.signOut();
           router.replace('/login');
         },
@@ -76,16 +117,36 @@ export default function SitterProfileTab() {
           setIsAvailable(false);
           return;
         }
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
 
-        // Save to sitter_locations (neighborhood-level — round to 2 decimals for ~1km precision)
+        let loc = null;
+        try {
+          loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+        } catch {
+          // Emulator fallback
+          loc = await Location.getLastKnownPositionAsync();
+        }
+
+        if (!loc) {
+          Alert.alert('Location unavailable', 'Could not get your location. Try again.');
+          setIsAvailable(false);
+          return;
+        }
+
+        // Get neighborhood from babysitter_details
+        const { data: bdDetails } = await supabase
+          .from('babysitter_details')
+          .select('neighborhood')
+          .eq('profile_id', user.id)
+          .maybeSingle();
+
+        // Save to sitter_locations with better precision and correct neighborhood
         await supabase.from('sitter_locations').upsert({
           sitter_id: user.id,
-          latitude: Math.round(loc.coords.latitude * 100) / 100,
-          longitude: Math.round(loc.coords.longitude * 100) / 100,
-          neighborhood: (profile as any)?.city ?? 'Algeria',
+          latitude: Math.round(loc.coords.latitude * 1000) / 1000,
+          longitude: Math.round(loc.coords.longitude * 1000) / 1000,
+          neighborhood: bdDetails?.neighborhood ?? 'Algeria',
           is_available: true,
           updated_at: new Date().toISOString(),
         });

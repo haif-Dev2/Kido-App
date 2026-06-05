@@ -36,6 +36,7 @@ type Params = {
   notes?: string;
   shareLocation?: string;
   total?: string;
+  hourlyRate?: string;
 };
 
 export default function BookingConfirmScreen() {
@@ -100,22 +101,36 @@ export default function BookingConfirmScreen() {
         const endISO = new Date(date);   endISO.setHours(eh, em, 0, 0);
         if (endISO < startISO) endISO.setDate(endISO.getDate() + 1);
 
-        const { error } = await supabase.from('bookings').insert({
-          code, parent_id: user.id, babysitter_id: params.sitterId,
-          status: 'pending', start_date: startISO.toISOString(),
-          end_date: endISO.toISOString(), total_price: totalNum,
+        // Calculate duration in hours
+        const durationMs = endISO.getTime() - startISO.getTime();
+        const durationHours = Math.max(1, Math.round(durationMs / 3600000 * 2) / 2); // round to 0.5h
+        const hourlyRate = totalNum > 0 && durationHours > 0
+          ? Math.round(totalNum / durationHours)
+          : Number(params.hourlyRate) || 200;
+
+        const { error, data: insertedData } = await supabase.from('bookings').insert({
+          code,
+          parent_id: user.id,
+          babysitter_id: params.sitterId,
+          status: 'PENDING',
+          start_date: startISO.toISOString(),
+          end_date: endISO.toISOString(),
+          duration_hours: durationHours,
+          hourly_rate: hourlyRate,
+          total_price: totalNum || (hourlyRate * durationHours),
+          children_count: Number(params.children) || 1,
           notes: params.notes || null,
-        });
+        }).select('id').single();
 
         if (error) {
           console.warn('[confirm] insert error:', error.message);
-        } else if (params.sitterId) {
-          // Notify sitter about new booking request
+        } else if (insertedData && params.sitterId) {
+          // Notify sitter about new booking
           await sendPushToUser(
             params.sitterId,
             'New booking request 📋',
-            `${params.sitterName ?? 'A parent'} wants to book you. Check your Jobs tab.`,
-            { booking_code: code }
+            'A parent wants to book you. Check your Jobs tab.',
+            { booking_id: insertedData.id }
           );
         }
       }
@@ -195,7 +210,7 @@ export default function BookingConfirmScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <>
-                <Text style={styles.confirmTxt}>Confirm booking</Text>
+                <Text style={styles.confirmTxt}>Review & Pay</Text>
                 <Ionicons name="checkmark-circle" size={18} color="#fff" />
               </>
             )}

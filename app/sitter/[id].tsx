@@ -325,9 +325,6 @@ export default function SitterDetailScreen() {
       </ScrollView>
 
       {/* ─── Bottom bar ─── */}
-      {/* The outer absolute view spans the full screen so the divider line
-          stretches edge-to-edge; the inner View caps width on tablets+desktop
-          so the price + Book button stay aligned with the body content. */}
       <View style={[s.bottomBarOuter, { paddingBottom: insets.bottom + 12 }]}>
         <View style={[s.bottomBarInner, { maxWidth: contentMaxWidth }]}>
           <View>
@@ -349,7 +346,15 @@ export default function SitterDetailScreen() {
                 setShowLoginPrompt(true);
                 return;
               }
-              router.push({ pathname: '/booking/new/[sitterId]', params: { sitterId: sitter.uuid ?? String(sitter.id) } });
+              router.push({
+                pathname: '/booking/new/[sitterId]',
+                params: {
+                  sitterId: sitter.uuid ?? String(sitter.id),
+                  sitterName: `${sitter.firstName} ${sitter.lastName}`,
+                  sitterAvatar: sitter.photo,
+                  hourlyRate: String(sitter.hourlyRate),
+                },
+              });
             }}
             style={s.bookBtn}
             accessibilityRole="button"
@@ -432,8 +437,6 @@ const s = StyleSheet.create({
     width: '100%',
   },
   iconBtn: {
-    // 44×44 minimum tap target (Apple HIG). Visual circle stays the same
-    // size via the inner icon — only the hit area is enlarged.
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -719,8 +722,7 @@ const s = StyleSheet.create({
     color: TEXT,
   },
 
-  // Bottom bar — split into outer (full-width divider) and inner (centered
-  // up to contentMaxWidth on tablets+desktop).
+  // Bottom bar
   bottomBarOuter: {
     position: 'absolute',
     bottom: 0,
