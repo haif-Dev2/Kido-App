@@ -329,7 +329,7 @@ export default function SearchScreen() {
     setPendingMinRating(minRating);
     setPendingMaxPrice(maxPrice);
     setPendingMaxDist(maxDistanceKm);
-    setPendingVerified(verifiedOnly);
+    setPendingVerified(pendingVerified);
     setShowFilters(true);
   };
 
@@ -378,7 +378,12 @@ export default function SearchScreen() {
         // MockSitter extended fields
         neighborhood: s.neighborhood || 'Algeria',
         distanceKm: Math.round(
-          calculateDistance(searchCenter.lat, searchCenter.lon, s.lat, s.lon) * 10
+          calculateDistance(
+            userLocation?.lat ?? searchCenter.lat,
+            userLocation?.lon ?? searchCenter.lon,
+            s.lat,
+            s.lon
+          ) * 10
         ) / 10,
         reviewsCount: s.reviewsCount,
         bio: '',

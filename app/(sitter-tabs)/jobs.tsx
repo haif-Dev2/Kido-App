@@ -117,10 +117,12 @@ export default function JobsTab() {
         .order('start_date', { ascending: false })
         .limit(30);
 
-      // Debug log to help diagnose join issues
-      console.log('[jobs] first booking parent:', JSON.stringify(data?.[0]?.parent));
-
       if (data && data.length > 0) {
+        // Log only when data exists — parent undefined here means the FK join failed in DB
+        if (data[0].parent === undefined || data[0].parent === null) {
+          console.warn('[jobs] parent join returned null — check bookings.parent_id FK in Supabase');
+        }
+
         setJobs(
           data.map((b: any) => ({
             id: b.id,

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { makeRedirectUri } from 'expo-auth-session';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -72,6 +73,11 @@ export default function RegisterStep1Screen() {
   const [experience, setExperience] = useState('1–2 years');
   const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
+  const [firstNameTouched, setFirstNameTouched] = useState(false);
+  const [lastNameTouched, setLastNameTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
   const role = useRegistrationStore(s => s.role);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -87,11 +93,17 @@ export default function RegisterStep1Screen() {
   };
 
   const nameRegex = /^[a-zA-ZÀ-ÿ\s'-]+$/;
-  const isStep1Valid = 
-    firstName.trim().length > 0 && nameRegex.test(firstName.trim()) &&
-    lastName.trim().length > 0 && nameRegex.test(lastName.trim()) &&
-    validateEmail(email) && 
+
+  const validateName = (value: string) =>
+    value.trim().length > 0 && /^[a-zA-ZÀ-ÿ'-]+(\s[a-zA-ZÀ-ÿ'-]+)*$/.test(value.trim());
+
+  const isStep1Valid =
+    validateName(firstName) &&
+    validateName(lastName) &&
+    validateEmail(email) &&
     validatePhone(phone, selectedCountry) &&
+    !emailError &&
+    !phoneError &&
     photoUri !== null &&
     city.trim().length > 0;
 
@@ -135,28 +147,9 @@ export default function RegisterStep1Screen() {
         quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]) return;
-      setPhotoUploading(true);
-      const asset = result.assets[0];
-      const ext = asset.uri.split('.').pop() ?? 'jpg';
-      const fileName = `avatar_${Date.now()}.${ext}`;
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, blob, { contentType: `image/${ext}`, upsert: true });
-      if (!uploadError) {
-        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-        setPhotoUri(data.publicUrl);
-      } else {
-        console.warn('[photo] upload error:', uploadError.message);
-        // Use local URI as fallback so photo shows even if upload fails
-        setPhotoUri(asset.uri);
-      }
+      setPhotoUri(result.assets[0].uri);
     } catch (e) {
       console.warn('[photo] error:', e);
-    } finally {
-      setPhotoUploading(false);
     }
   };
 
@@ -173,28 +166,9 @@ export default function RegisterStep1Screen() {
         quality: 0.8,
       });
       if (result.canceled || !result.assets?.[0]) return;
-      setPhotoUploading(true);
-      const asset = result.assets[0];
-      const ext = asset.uri.split('.').pop() ?? 'jpg';
-      const fileName = `avatar_${Date.now()}.${ext}`;
-      const response = await fetch(asset.uri);
-      const blob = await response.blob();
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, blob, { contentType: `image/${ext}`, upsert: true });
-      if (!uploadError) {
-        const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-        setPhotoUri(data.publicUrl);
-      } else {
-        console.warn('[photo] upload error:', uploadError.message);
-        // Use local URI as fallback so photo shows even if upload fails
-        setPhotoUri(asset.uri);
-      }
+      setPhotoUri(result.assets[0].uri);
     } catch (e) {
       console.warn('[camera] error:', e);
-    } finally {
-      setPhotoUploading(false);
     }
   };
 
@@ -260,13 +234,30 @@ export default function RegisterStep1Screen() {
   };
 
   const handleStep1Continue = () => {
-    const nameRegex = /^[a-zA-ZÀ-ÿ\s'-]+$/;
-    if (!nameRegex.test(firstName.trim())) {
+    if (!validateName(firstName)) {
       setErrorMessage('First name must contain only letters.');
+      setFirstNameTouched(true);
       return;
     }
-    if (!nameRegex.test(lastName.trim())) {
+    if (!validateName(lastName)) {
       setErrorMessage('Last name must contain only letters.');
+      setLastNameTouched(true);
+      return;
+    }
+    if (!validateEmail(email)) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+    if (emailError) {
+      setErrorMessage(emailError);
+      return;
+    }
+    if (!validatePhone(phone, selectedCountry)) {
+      setErrorMessage('Please enter a valid phone number.');
+      return;
+    }
+    if (phoneError) {
+      setErrorMessage(phoneError);
       return;
     }
     if (!photoUri) {
@@ -337,9 +328,36 @@ export default function RegisterStep1Screen() {
         return;
       }
 
+      // Upload photo now — user is authenticated so RLS passes
+      let uploadedPhotoUrl: string | null = null;
+      if (photoUri) {
+        try {
+          const ext = photoUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+          const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+          const fileName = `${session.user.id}/avatar.${ext}`;
+          const base64 = await FileSystem.readAsStringAsync(photoUri, { encoding: 'base64' });
+          const byteString = atob(base64);
+          const byteArray = new Uint8Array(byteString.length);
+          for (let i = 0; i < byteString.length; i++) {
+            byteArray[i] = byteString.charCodeAt(i);
+          }
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(fileName, byteArray, { contentType: mimeType, upsert: true });
+          if (!uploadError) {
+            const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+            uploadedPhotoUrl = data.publicUrl;
+          } else {
+            console.warn('[signup photo] upload error:', uploadError.message);
+          }
+        } catch (e) {
+          console.warn('[signup photo] error:', e);
+        }
+      }
+
       // Save extra fields to profiles
       const profileUpdates: Record<string, any> = {};
-      if (photoUri) profileUpdates.photo_url = photoUri;
+      if (uploadedPhotoUrl) profileUpdates.photo_url = uploadedPhotoUrl;
       if (Object.keys(profileUpdates).length > 0) {
         await supabase.from('profiles').update(profileUpdates).eq('id', session.user.id);
       }
@@ -456,11 +474,39 @@ export default function RegisterStep1Screen() {
                   {/* Name row */}
                   <View style={styles.row}>
                     <View style={styles.col}>
-                      <CustomInput label="FIRST NAME" placeholder="Sarah" iconName="person-outline" value={firstName} onChangeText={setFirstName} />
+                      <CustomInput
+                        label="FIRST NAME"
+                        placeholder="Sarah"
+                        iconName="person-outline"
+                        value={firstName}
+                        onChangeText={(v) => {
+                          // Replace multiple spaces with a single space, no leading space
+                          const cleaned = v.replace(/\s{2,}/g, ' ').replace(/^\s/, '');
+                          setFirstName(cleaned);
+                          if (firstNameTouched) setFirstNameTouched(true);
+                        }}
+                        onBlur={() => setFirstNameTouched(true)}
+                      />
+                      {firstNameTouched && !validateName(firstName) && (
+                        <Text style={styles.inputErrorText}>Only letters allowed</Text>
+                      )}
                     </View>
                     <View style={{ width: 12 }} />
                     <View style={styles.col}>
-                      <CustomInput label="LAST NAME" placeholder="Johnson" iconName="person-outline" value={lastName} onChangeText={setLastName} />
+                      <CustomInput
+                        label="LAST NAME"
+                        placeholder="Johnson"
+                        iconName="person-outline"
+                        value={lastName}
+                        onChangeText={(v) => {
+                          const cleaned = v.replace(/\s{2,}/g, ' ').replace(/^\s/, '');
+                          setLastName(cleaned);
+                        }}
+                        onBlur={() => setLastNameTouched(true)}
+                      />
+                      {lastNameTouched && !validateName(lastName) && (
+                        <Text style={styles.inputErrorText}>Only letters allowed</Text>
+                      )}
                     </View>
                   </View>
 
@@ -523,19 +569,34 @@ export default function RegisterStep1Screen() {
                   )}
 
                   <View style={{ marginBottom: 16 }}>
-                    <CustomInput 
-                      label="EMAIL" 
-                      placeholder="your@email.com" 
-                      iconName="mail-outline" 
-                      keyboardType="email-address" 
-                      autoCapitalize="none" 
-                      value={email} 
-                      onChangeText={setEmail} 
+                    <CustomInput
+                      label="EMAIL"
+                      placeholder="your@email.com"
+                      iconName="mail-outline"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={email}
+                      onChangeText={(v) => { setEmail(v); setEmailError(''); }}
+                      onBlur={async () => {
+                        setEmailTouched(true);
+                        if (!validateEmail(email)) return;
+                        try {
+                          const { data } = await supabase
+                            .from('profiles')
+                            .select('id')
+                            .eq('email', email.trim().toLowerCase())
+                            .maybeSingle();
+                          if (data) setEmailError('Email already used');
+                        } catch {}
+                      }}
                       containerStyle={{ marginBottom: 0 }}
                     />
-                    {email.length > 0 && !validateEmail(email) && (
+                    {emailTouched && email.length > 0 && !validateEmail(email) && (
                       <Text style={styles.inputErrorText}>Please enter a valid email address</Text>
                     )}
+                    {emailError ? (
+                      <Text style={styles.inputErrorText}>{emailError}</Text>
+                    ) : null}
                   </View>
 
                   {/* Phone Input */}
@@ -551,13 +612,25 @@ export default function RegisterStep1Screen() {
                         <Ionicons name="chevron-down" size={14} color="#9CA3AF" />
                       </TouchableOpacity>
                       <View style={styles.phoneInputWrapper}>
-                        <CustomInput 
-                          label="" 
-                          placeholder="555 123 456" 
-                          keyboardType="phone-pad" 
-                          value={phone} 
-                          onChangeText={setPhone} 
-                          containerStyle={{ marginBottom: 0 }} 
+                        <CustomInput
+                          label=""
+                          placeholder="555 123 456"
+                          keyboardType="phone-pad"
+                          value={phone}
+                          onChangeText={(v) => { setPhone(v); setPhoneError(''); }}
+                          onBlur={async () => {
+                            if (!validatePhone(phone, selectedCountry)) return;
+                            try {
+                              const fullPhone = `${selectedCountry.dialCode}${phone.trim()}`;
+                              const { data } = await supabase
+                                .from('profiles')
+                                .select('id')
+                                .eq('phone', fullPhone)
+                                .maybeSingle();
+                              if (data) setPhoneError('Phone number already used');
+                            } catch {}
+                          }}
+                          containerStyle={{ marginBottom: 0 }}
                           maxLength={selectedCountry.maxLength}
                         />
                       </View>
@@ -565,6 +638,9 @@ export default function RegisterStep1Screen() {
                     {phone.length > 0 && !validatePhone(phone, selectedCountry) && (
                       <Text style={styles.inputErrorText}>Please enter a valid phone number</Text>
                     )}
+                    {phoneError ? (
+                      <Text style={styles.inputErrorText}>{phoneError}</Text>
+                    ) : null}
                   </View>
 
                   {/* Divider */}
@@ -598,7 +674,7 @@ export default function RegisterStep1Screen() {
                     title="Continue →" 
                     variant={isStep1Valid ? 'primary' : 'secondary'} 
                     onPress={() => handleStep1Continue()} 
-                    disabled={loadingProvider !== null}
+                    disabled={!isStep1Valid || loadingProvider !== null}
                     style={{ marginBottom: 24 }} 
                   />
                 </>

@@ -62,7 +62,7 @@ function ContentWrap({ children, hp = 16 }: {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { session, isVisitor } = useAuth();
+  const { session, isVisitor, profile } = useAuth();
   const { width } = useWindowDimensions();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -76,7 +76,9 @@ export default function HomeScreen() {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const firstName = session?.user?.user_metadata?.first_name ?? 'there';
-  const photoUri = session?.user?.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200';
+  const photoUri = profile?.photo_url
+    ?? session?.user?.user_metadata?.avatar_url
+    ?? 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200';
 
   // Nearby sitters
   const nearby = useMemo(() => {
