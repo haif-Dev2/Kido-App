@@ -39,11 +39,6 @@ export default function SitterProfileTab() {
   const { profile } = useAuth();
   const [isAvailable, setIsAvailable] = useState(false);
 
-  // Request location permission early so it's ready when the sitter toggles availability
-  useEffect(() => {
-    Location.requestForegroundPermissionsAsync().catch(() => {});
-  }, []);
-
   // ADD — loads real availability from DB on mount
   useEffect(() => {
     const loadAvailability = async () => {
@@ -134,19 +129,26 @@ export default function SitterProfileTab() {
           return;
         }
 
-        // Get neighborhood from babysitter_details
+        // Get neighborhood + city from babysitter_details and combine them
         const { data: bdDetails } = await supabase
           .from('babysitter_details')
-          .select('neighborhood')
+          .select('neighborhood, city')
           .eq('profile_id', user.id)
           .maybeSingle();
 
-        // Save to sitter_locations with better precision and correct neighborhood
+        const cityLabel = bdDetails?.city && bdDetails.city !== 'Algiers'
+          ? bdDetails.city : null;
+        const neighborhoodLabel = bdDetails?.neighborhood ?? null;
+        const locationLabel = cityLabel && neighborhoodLabel
+          ? `${cityLabel}, ${neighborhoodLabel}`
+          : cityLabel ?? neighborhoodLabel ?? 'Algeria';
+
+        // Save to sitter_locations with better precision and combined location label
         await supabase.from('sitter_locations').upsert({
           sitter_id: user.id,
           latitude: Math.round(loc.coords.latitude * 1000) / 1000,
           longitude: Math.round(loc.coords.longitude * 1000) / 1000,
-          neighborhood: bdDetails?.neighborhood ?? 'Algeria',
+          neighborhood: locationLabel,
           is_available: true,
           updated_at: new Date().toISOString(),
         });
