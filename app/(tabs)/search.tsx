@@ -38,7 +38,6 @@ type GeoSuggestion = {
   boundingBox: [number, number, number, number];
 };
 
-// Clean Tifinagh (Amazigh) characters
 function cleanAmazigh(text: string): string {
   return text.replace(/[\u2D30-\u2D7F]+/g, '').replace(/\s{2,}/g, ' ').trim();
 }

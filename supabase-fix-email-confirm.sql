@@ -1,8 +1,4 @@
--- ============================================================
--- RUN THIS IN SUPABASE SQL EDITOR TO FIX EMAIL CONFIRMATION
--- Go to: https://supabase.com/dashboard/project/udrmlimrbhimfmisfvtw/sql/new
--- Paste ALL of this code and click "Run"
--- ============================================================
+
 
 -- Step 1: Create a function that auto-confirms email on signup
 CREATE OR REPLACE FUNCTION public.auto_confirm_email()

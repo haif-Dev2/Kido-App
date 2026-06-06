@@ -1,21 +1,27 @@
-// app/booking/success.tsx
-// Animated success screen shown after a booking is confirmed.
+
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Share,
+  Pressable, Share,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, {
   FadeIn, FadeInDown, FadeInUp,
-  useSharedValue, useAnimatedStyle,
-  withDelay, withSpring, withSequence, withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius } from '../../theme/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { haptics } from '../../lib/haptics';
 import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
+import { colors, fonts, radius } from '../../theme/colors';
 
 type Params = {
   bookingCode?: string;

@@ -1,21 +1,4 @@
--- =====================================================================
---  KIDO — sample seed data
---
---  HOW TO USE:
---   1. Run schema.sql FIRST (creates tables + triggers).
---   2. Create a few test users through Supabase Auth (dashboard → Authentication → Users → Invite/Add).
---      You can use fake emails like amina@kido.dz, yasmine@kido.dz, etc.
---      Pick a role via `raw_user_meta_data` — or just create them as PARENT and run the UPDATE at the bottom.
---   3. Copy each user's UUID (from the Users list) into the VALUES below.
---   4. Paste this file into the SQL editor and run.
---
---  Anything you DON'T want to seed — just comment out.
--- =====================================================================
 
--- ---------------------------------------------------------------------
--- 1) Flip some profiles to BABY_SITTER and fill in details
---    Replace '00000000-0000-0000-0000-000000000001' etc. with real auth.users.id values.
--- ---------------------------------------------------------------------
 
 -- Amina Khelifi
 update public.profiles set role = 'BABY_SITTER', first_name = 'Amina', last_name = 'Khelifi',

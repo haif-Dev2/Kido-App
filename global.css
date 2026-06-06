@@ -9,9 +9,9 @@
    On native (iOS / Android via Expo), this file is ignored.
 
    Mobile-first ladder mirrors lib/responsive.ts:
-     ≥ 320px → small phones        ≥ 768px  → tablets
-     ≥ 375px → iPhone SE / std     ≥ 1024px → desktop
-     ≥ 430px → iPhone Pro Max      ≥ 1280px → large desktop (content cap)
+     ≥ 320px -> small phones        ≥ 768px  -> tablets
+     ≥ 375px ->iPhone SE / std     ≥ 1024px -> desktop
+     ≥ 430px -> iPhone Pro Max      ≥ 1280px -> large desktop (content cap)
    ──────────────────────────────────────────────────────────────────────────── */
 
 /* ── 1. Document & viewport baseline ─────────────────────────────────────── */

@@ -1,17 +1,21 @@
-// app/booking/payment.tsx
-// Mock payment screen inserted between confirm and success.
+
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, ScrollView,
-  TextInput, StatusBar, ActivityIndicator,
+  ActivityIndicator,
+  Pressable, ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, radius } from '../../theme/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { haptics } from '../../lib/haptics';
 import { READING_MAX_WIDTH, useResponsive } from '../../lib/responsive';
+import { colors, fonts, radius } from '../../theme/colors';
 
 type Method = 'card' | 'cash' | 'ccp';
 

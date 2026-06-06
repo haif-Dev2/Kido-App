@@ -1,8 +1,4 @@
-// app/booking/confirm.tsx
-//
-// Confirmation screen for the new-booking flow.
-// Reads all params passed from `app/booking/new/[sitterId].tsx` (handleContinue)
-// and creates the booking in Supabase on confirm.
+
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';

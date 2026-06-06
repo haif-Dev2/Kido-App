@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (s?.user?.id) {
         await fetchProfile(s.user.id);
-        registerPushToken(); // ← Register push token when user signs in / session is restored
+        registerPushToken(); // <- Register push token when user signs in / session is restored
       } else {
         setProfile(null);
       }

@@ -1,5 +1,5 @@
 -- =====================================================================
---  KIDO — Supabase schema (v1)
+--  KIDO — Supabase schema 
 --  Paste this whole file into the Supabase SQL editor and hit Run.
 --  Idempotent: safe to re-run (uses IF NOT EXISTS / CREATE OR REPLACE).
 -- =====================================================================

@@ -92,8 +92,8 @@ export default function RootLayout() {
 /**
  * Responsive web wrapper.
  *
- *   < 1024px (phones, small tablets)  → full-width edge-to-edge (no frame).
- *   ≥ 1024px (laptops, desktops)     → app stretches edge-to-edge inside a
+ *   < 1024px (phones, small tablets)   full-width edge-to-edge (no frame).
+ *   ≥ 1024px (laptops, desktops)      app stretches edge-to-edge inside a
  *                                       centered card capped at MAX_CONTENT_WIDTH,
  *                                       on a warm teal backdrop.
  *

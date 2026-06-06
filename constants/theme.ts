@@ -1,22 +1,6 @@
 import { Platform } from 'react-native';
 
-/**
- * ╔══════════════════════════════════════════════════════════════╗
- * ║                    KIDO DESIGN SYSTEM                       ║
- * ║  A comprehensive token system built for trust & warmth.     ║
- * ║  Based on 8pt spatial grid · Major-third type scale (1.25)  ║
- * ╚══════════════════════════════════════════════════════════════╝
- *
- * DESIGN PHILOSOPHY:
- * - Trust: Teal primary evokes stability, safety, healthcare credibility
- * - Warmth: Soft surfaces, generous spacing, rounded corners
- * - Clarity: High-contrast text, intentional hierarchy, no clutter
- *
- * USAGE:
- *   import { colors, typography, spacing } from '../constants/Theme';
- *   // or
- *   import { Theme } from '../constants/Theme';
- */
+
 
 // ─── COLOR TOKENS ──────────────────────────────────────────────
 export const colors = {

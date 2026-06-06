@@ -1,5 +1,3 @@
-// app/(tabs)/_layout.tsx — full replacement (v2)
-// Change from v1: bottomPad multiplied by 1.2 for 20% extra breathing room.
 
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';

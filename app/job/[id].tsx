@@ -1,6 +1,4 @@
-// app/job/[id].tsx
-// Sitter job detail screen — mirrors booking/[id].tsx quality from the sitter's perspective.
-// Accept/Decline/Complete stay on the jobs list card. This screen is for information + communication.
+
 
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -23,7 +21,6 @@ import { Colors } from '../../constants/Colors';
 import { haptics } from '../../lib/haptics';
 import { supabase } from '../../lib/supabase';
 
-// New imports for consistent UI
 import { MessageCircle, Phone } from 'lucide-react-native';
 import { Button } from '../../components/ui/Button';
 

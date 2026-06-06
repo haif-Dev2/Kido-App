@@ -1,5 +1,4 @@
-// app/chat/[sitterId].tsx
-// Real-looking chat screen between parent and sitter (bidirectional).
+
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';

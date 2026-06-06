@@ -1,9 +1,4 @@
-// app/index.tsx  —  full replacement
-// Key fix: uses useEffect + router.replace instead of <Redirect>.
-// The <Redirect> component in expo-router triggers a GO_BACK action
-// to remove itself from the stack, which fails at the root level and
-// produces the "GO_BACK was not handled" error in the terminal.
-// useEffect + router.replace avoids this entirely.
+
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -35,8 +30,8 @@ export default function IndexRouter() {
         router.replace('/(tabs)');
         return;
       }
-      // First-ever launch → splash + onboarding
-      // Returning user / after logout → straight to login
+      // First-ever launch -> splash + onboarding
+      // Returning user / after logout -> straight to login
       router.replace(onboardingDone ? '/login' : '/splash');
       return;
     }

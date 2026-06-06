@@ -1,7 +1,6 @@
--- ═══════════════════════════════════════════════════════════════
 --  Chat / messaging schema
 --  Run this in your Supabase SQL editor once.
--- ═══════════════════════════════════════════════════════════════
+-- 
 
 -- ─── Table: messages ───
 -- Each row = one chat bubble between the current user and a partner.

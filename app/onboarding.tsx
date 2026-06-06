@@ -1,12 +1,4 @@
-// app/onboarding.tsx  —  full replacement
-// Changes:
-//  1. Swipeable with fingers — uses a horizontal ScrollView with pagingEnabled
-//  2. No "Browse as Visitor" button (moved to login page)
-//  3. No "Already have an account? Log In" link (removed from carousels)
-//  4. Skip → /login (replace — no back button possible)
-//  5. "Commencer" (Get Started) → /login (replace — no back button possible)
-//  6. Saves @kido:onboarding_done before every exit so splash/carousels
-//     never appear again after the first time
+
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
