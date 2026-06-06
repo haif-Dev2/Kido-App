@@ -1,5 +1,6 @@
 import { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { registerPushToken } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 
@@ -12,6 +13,8 @@ export interface Profile {
   photo_url: string | null;
   role: 'PARENT' | 'BABY_SITTER' | 'ADMIN';
   is_verified: boolean;
+  is_banned?: boolean;
+  is_suspended?: boolean;
 }
 
 interface AuthContextValue {
@@ -59,6 +62,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       return;
     }
+
+    // Check if admin banned or suspended this account
+    if (data?.is_banned) {
+      await supabase.auth.signOut();
+      setProfile(null);
+      Alert.alert('Account banned', 'Your account has been permanently suspended. Contact support.');
+      return;
+    }
+    if (data?.is_suspended) {
+      await supabase.auth.signOut();
+      setProfile(null);
+      Alert.alert('Account suspended', 'Your account has been temporarily suspended. Contact support.');
+      return;
+    }
+
     setProfile((data as Profile | null) ?? null);
   }, []);
 
